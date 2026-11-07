@@ -329,6 +329,36 @@ export function shop(b, S, owned) {
   for (let i = 0; i < 3; i++) b.box(-3 + i * 1.3, 0, d / 2 + 1.4, 1, .9, 1, FL[i]);
 }
 
+/* ---------------- lakeview cottage (north shore) ---------------- */
+export function cottage(b, C, owned, smoke) {
+  const r = rng(C.i * 97 + 13), pick = a => a[(r() * a.length) | 0];
+  const wall = pick(WALL), roof = pick(ROOFS), sh = pick(SHUT), tim = pick(TIM), door = pick(['#5c3a20', '#2f6e62', '#b3372d', '#3f6a8f']);
+  const w = 6.6, d = 5.4, zf = d / 2, gz = zf + 4.1;
+  b.at(C.x, C.y, C.z, C.yaw);
+  b.box(0, -2.6, 0, w + .5, 3.2, d + .5, '#8f897d');
+  b.box(0, .6, 0, w, 3.3, d, wall);
+  b.gable(0, 3.9, 0, w, d, 3.2, .7, roof, tim);
+  b.box(0, 4.7, zf + .04, 1.1, 1.2, .08, '#4f7894'); b.box(0, 4.6, zf + .02, 1.5, 1.6, .06, '#f8f4e8');
+  b.box(0, .6, zf + .03, 1.4, 2.6, .12, door); b.box(0, 3.2, zf + .03, 1.7, .22, .14, '#f8f4e8');
+  b.box(0, .2, zf + .7, 2.4, .4, 1.4, '#b9b2a2');
+  win(b, -2, 1.8, zf, 1.1, 1.4, sh, true, FL); win(b, 2, 1.8, zf, 1.1, 1.4, sh, true, FL);
+  const cx = w * .25, cz = -d * .15;
+  b.box(cx, 3.9, cz, .9, 4.4, .9, '#a67856'); b.box(cx, 8.3, cz, 1.2, .26, 1.2, '#8c6244');
+  if (owned && smoke) smoke.push(b.world(cx, 8.6, cz));
+  /* flower garden */
+  for (let i = -4; i <= 4; i++) { if (Math.abs(i) < 1) continue; b.box(i * .85, -.9, gz, .18, 1.9, .12, '#f5f0e4'); }
+  b.box(-2.6, .75, gz, 4.6, .1, .1, '#f5f0e4'); b.box(2.6, .75, gz, 4.6, .1, .1, '#f5f0e4');
+  b.box(0, -.05, zf + 2.75, 1.3, .15, 2.7, '#d9cfb4');
+  for (let i = 0; i < 26; i++) { const fx = (r() - .5) * 8.2, fz = zf + 1.6 + r() * 2.3; if (Math.abs(fx) < 1.1) continue; b.box(fx, -.5, fz, .42, .8 + r() * .4, .42, FL[(r() * 5) | 0]); }
+  b.cone(-3.5, -.4, zf + 1.4, .8, 1.8, 6, '#4f9a4a'); b.cone(3.5, -.4, zf + 1.4, .8, 1.8, 6, '#5ea244');
+  /* for sale: padlock on the door and a small gold sign */
+  if (!owned) {
+    b.box(0, 1.15, zf + .14, .75, .6, .22, '#3a3f47'); b.box(0, 1.3, zf + .27, .18, .22, .06, '#e9a93a');
+    b.box(-.27, 1.75, zf + .14, .1, .45, .12, '#9aa0a8'); b.box(.27, 1.75, zf + .14, .1, .45, .12, '#9aa0a8'); b.box(0, 2.15, zf + .14, .64, .1, .12, '#9aa0a8');
+    b.box(w / 2 + .8, -.4, zf + 3.2, .12, 2.3, .12, '#7a5336'); b.box(w / 2 + .8, 1.1, zf + 3.2, 1.5, .8, .1, '#e9a93a'); b.box(w / 2 + .8, 1.5, zf + 3.27, 1.1, .12, .04, '#fffaf0');
+  }
+}
+
 /* ---------------- bridge, pier, boats, lamps ---------------- */
 export function bridge(b, x, y, z) {
   b.at(x, y, z, 0);
