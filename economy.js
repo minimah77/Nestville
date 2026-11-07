@@ -1,6 +1,7 @@
 /* Nestville economy panel: shows coins, streak and the daily reward in the menu.
    Runs next to town.js and reads the same state object. */
 import './extras.js';
+import './life.js';
 import { save, ensure, dailyDone, dailyAmount, rentDue, claimDaily, coins, liveStreak, owned } from './shared.js';
 
 const $ = id => document.getElementById(id);
