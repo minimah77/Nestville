@@ -12,7 +12,7 @@ export function fbm(x, y, o = 4) {
   return s / t;
 }
 
-export const B = { x0: -470, x1: 470, z0: -420, z1: 440 }; /* world bounds */
+export const B = { x0: -590, x1: 590, z0: -560, z1: 570 }; /* world bounds */
 export const TOWN = { x0: -175, x1: 175, z0: -80, z1: 195 }; /* town rect: canals, quays, colour detail */
 export const WL = .3; /* water level of lake and canals */
 const LAKE = { cx: 0, cz: -88, rx: 175, rz: 98 };
@@ -26,12 +26,12 @@ export function baseH(x, z) {
   const south = 2.1 + Math.max(0, z - 150) * .16 + Math.max(0, z - 235) * .14;
   h += land * (south + (fbm(x * .02 + 1, z * .02 + 4, 3) - .5) * (1.6 + 7 * hills) * sm(0, 60, z) + (fbm(x * .05, z * .05, 2) - .5) * (.9 + 1.6 * hills));
   /* mountains: lower than before and much farther from the village */
-  const mm = Math.max(sm(-290, -410, z), sm(275, 395, Math.abs(x)), sm(300, 415, z)) * sm(1.0, 1.35, e); /* wide flat meadow between the village and the mountains */
+  const mm = Math.max(sm(-405, -525, z), sm(375, 505, Math.abs(x)), sm(395, 515, z)) * sm(1.0, 1.35, e); /* wide flat meadow between the village and the mountains */
   if (mm > 0) {
     const r = 1 - Math.abs(2 * fbm(x * .0075 + 11, z * .0075 + 5, 5) - 1);
-    h += mm * (16 + r * r * 62 * (.55 + .45 * fbm(x * .004 + 30, z * .004 + 2, 2)) + fbm(x * .03, z * .03, 3) * 12);
+    h += mm * (16 + r * r * 84 * (.55 + .45 * fbm(x * .004 + 30, z * .004 + 2, 2)) + fbm(x * .03, z * .03, 3) * 12);
   }
-  h += sm(400, 460, Math.max(Math.abs(x), Math.abs(z))) * 100;
+  h += sm(525, 585, Math.max(Math.abs(x), Math.abs(z))) * 100;
   return h;
 }
 export function shoreZ(x) {
@@ -108,6 +108,7 @@ export function roadDist(x, z) {
 export const plazas = []; /* {x,z,r} */
 
 /* ---------- layout ---------- */
+const LAKE0 = { x: 0, z: -88 };
 export const L = { houses: [], pent: [], shops: [], cot: [], castles: [], church: null, plaza: null, pier: null, yachtPier: null, bridge: null, towers: [], walks: [], bridges: [], fbr: [] };
 
 export function layout() {
@@ -179,7 +180,7 @@ export function layout() {
   const cands = [];
   for (let r = 0; r <= NROWS; r++) {
     const rnd = (a) => { const s = Math.sin(a * 91.7 + r * 13.1) * 9137.3; return s - Math.floor(s); };
-    for (let k = 0, x = -160; x < 162; k++, x += 11.2) {
+    for (let k = 0, x = -160; x < 162; k++, x += 16.5) {
       const xx = x + (rnd(k) - .5) * 2.4, zz = laneZ(r, xx) + 9.6 + (rnd(k + 40) - .5) * 1.2;
       cands.push({ x: xx, z: zz, yaw: Math.PI + (rnd(k + 90) - .5) * .14, row: r });
     }
@@ -210,9 +211,16 @@ export function layout() {
      the next one a bit toward the lake, the next toward the far hills), and every one has a little back garden behind it.
      They are claimable plots like the rest and are handed out after the village rows are full.
      To move or resize a quarter, change x0/x1/z0/z1 (area) or n (how many) here. dirs = the directions the fronts look: [east, south]. */
-  const QS = [
-    { x0: -268, x1: -194, z0: 26, z1: 172, n: 20, dirs: [[-1, 0], [-.7, -.7], [-.8, .6], [0, -1], [-1, .25]] },
-    { x0: 226, x1: 270, z0: 22, z1: 172, n: 12, dirs: [[1, 0], [.7, -.7], [.8, .6], [0, -1], [1, .25]] }
+  const QS = [ /* messy hillside villas, spread all round the lake (edit n for more or fewer) */
+    { x0: -352, x1: -284, z0: -60, z1: 80, n: 7, dirs: [[-1, 0], [-.7, -.7], [-.8, .6], [0, -1], [-1, .25]] },
+    { x0: -352, x1: -284, z0: 110, z1: 230, n: 5, dirs: [[-1, 0], [-.8, .6], [0, -1]] },
+    { x0: 284, x1: 352, z0: -60, z1: 80, n: 7, dirs: [[1, 0], [.7, -.7], [.8, .6], [0, -1], [1, .25]] },
+    { x0: 284, x1: 352, z0: 110, z1: 230, n: 5, dirs: [[1, 0], [.8, .6], [0, -1]] },
+    { x0: -330, x1: -230, z0: -340, z1: -200, n: 6, dirs: [[-.5, .9], [0, 1], [.6, .8]] },
+    { x0: 230, x1: 330, z0: -340, z1: -200, n: 6, dirs: [[.5, .9], [0, 1], [-.6, .8]] },
+    { x0: -140, x1: 140, z0: -385, z1: -300, n: 6, dirs: [[0, 1], [.5, .9], [-.5, .9]] },
+    { x0: -300, x1: -120, z0: 240, z1: 340, n: 5, dirs: [[0, -1], [-.6, -.8], [.6, -.8]] },
+    { x0: 120, x1: 300, z0: 240, z1: 340, n: 5, dirs: [[0, -1], [.6, -.8], [-.6, -.8]] }
   ];
   let sd = 90210; const rnd = () => { sd = (sd * 1664525 + 1013904223) >>> 0; return sd / 4294967296; };
   const villas = [];
@@ -228,10 +236,30 @@ export function layout() {
       if (villas.some(v => Math.hypot(x - v.x, z - v.z) < 19 || Math.hypot(x - v.gx, z - v.gz) < 12 || Math.hypot(gx - v.x, gz - v.z) < 12)) continue;
       const h = baseH(x, z);
       addPad(x, z, 5.6, h, 4.5); addPad(gx, gz, 6.6, h, 5); addPad(x + Math.sin(yaw) * 7.5, z + Math.cos(yaw) * 7.5, 3.4, h, 4); /* house, back garden, front gate */
-      const v = { idx: L.houses.length, x, z, y: h, yaw, w: 9, d: 8, hgt: 14, row: -1, built: true, gx, gz };
+      const v = { idx: L.houses.length, x, z, y: h, yaw, w: 9, d: 8, hgt: 14, row: -1, built: true, gx, gz, style: villas.length % 3 === 1 ? 'town' : 'chalet' };
       villas.push(v); L.houses.push(v); made++;
     }
   }
+
+
+  /* ---------- hamlets all around the lake ----------
+     Small clean groups (3 by 2, equal spacing, fronts to the lake) spread round the whole shore, so the lake looks like it sits in the middle of an inhabited island.
+     Townhouses (the photo) mixed with Swiss chalets (the video). Edit HAM to move a hamlet: [centre x, centre z]. Hamlets on steep or wet ground just lose those houses. */
+  const HAM = [[-250, -250], [-190, -330], [-70, -345], [80, -345], [190, -330], [250, -250], [305, -130], [305, 20], [262, 130], [185, 225], [60, 245], [-70, 245], [-190, 225], [-262, 130], [-305, 20], [-305, -130]];
+  HAM.forEach((hc, hi) => {
+    let lx = LAKE0.x - hc[0], lz = LAKE0.z - hc[1]; const ll = Math.hypot(lx, lz); lx /= ll; lz /= ll;
+    const yaw = Math.atan2(lx, lz), tx = -lz, tz = lx;
+    for (let j = 0; j < 2; j++) for (let i = 0; i < 3; i++) {
+      const x = hc[0] + tx * (i - 1) * 14 - lx * (j - .5) * 20, z = hc[1] + tz * (i - 1) * 14 - lz * (j - .5) * 20, h = baseH(x, z);
+      if (h < 1.4 || h > 60 || L.castles.some(c => Math.hypot(x - c.x, z - c.z) < c.r + 9)) continue;
+      if (Math.abs(x) < 195 && z > -95 && z < 205) continue; /* the main village */
+      if (Math.abs(x) < 150 && z < -150 && z > -290) continue; /* the cottage district */
+      if (Math.hypot(baseH(x + 6, z) - baseH(x - 6, z), baseH(x, z + 6) - baseH(x, z - 6)) / 12 > .25) continue;
+      if (L.houses.some(v => Math.hypot(x - v.x, z - v.z) < 11)) continue;
+      addPad(x, z, 5.6, h, 4.5);
+      L.houses.push({ idx: L.houses.length, x, z, y: h, yaw, w: 9, d: 8, hgt: 14, row: -1, built: true, style: (i + j + hi) % 3 === 1 ? 'chalet' : 'town' });
+    }
+  });
 
   /* lakeview cottages: 4 terraced rows on the north shore slope, all facing the lake */
   const CROW = [-198, -216, -234, -252];
@@ -262,7 +290,7 @@ export function layout() {
   for (let r = 0; r <= NROWS; r++) {
     let zb = laneZ(r, 12) + .9; zb = laneZ(r, xr(zb)) + .9; const bx = xr(zb);
     const zw = laneZ(r, bx - 10) + .9, ze = laneZ(r, bx + 10) + .9;
-    L.bridges.push({ x: bx, y: Math.max(baseH(bx - 11, zb), baseH(bx + 11, zb)) - .8, z: (zw + ze) / 2, zw, ze, yaw: -Math.atan2(ze - zw, 20), row: r });
+    L.bridges.push({ big: r === 3, x: bx, y: Math.max(baseH(bx - 11, zb), baseH(bx + 11, zb)) - .8, z: (zw + ze) / 2, zw, ze, yaw: -Math.atan2(ze - zw, 20), row: r });
   }
   /* one sidewalk in front of every row of houses (the garden paths in paths.js end on it).
      Each sidewalk now runs right up to the end of the bridge (exactly 10 from its centre), so there is no gap of bare grass any more. */

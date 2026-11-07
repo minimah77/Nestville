@@ -63,11 +63,11 @@ ready(async nv => {
     const f = rr(.25, .72), ox = rr(-30, 30), oz = rr(-12, 12), ph = rr(0, 6.28), sp = rr(.05, .09) * (R() < .5 ? -1 : 1);
     const at = a => [LAKE.cx + ox + Math.cos(a) * LAKE.rx * f, LAKE.cz + oz + Math.sin(a) * LAKE.rz * f * 1.0];
     let ok = true; for (let k = 0; k < 48; k++) { const p = at(k / 48 * 6.283); if (!deep(p[0], p[1])) { ok = false; break; } }
-    if (ok) schools.push({ at, ph, sp, n: 2 });
+    if (ok) schools.push({ at, ph, sp, n: 1 });
   }
-  const lake = []; schools.forEach(s => { for (let k = 0; k < s.n; k++) lake.push({ s, off: k * .05 + rr(0, .03), side: rr(-4, 4), sc: rr(.5, .9), jump: rr(3, 12), jt: -1 }); });
+  const lake = []; schools.forEach(s => { for (let k = 0; k < s.n; k++) lake.push({ s, off: k * .05 + rr(0, .03), side: rr(-4, 4), sc: rr(.3, .5), jump: rr(8, 20), jt: -1 }); });
   /* one or two big fish, the rest stay small */
-  lake.slice(0, 2).forEach((f, i) => { f.sc = rr(3.2, 4); f.side = 0; f.jump = 9 + i * 5; });
+  /* all fish are small now (no giant ones) and there are only a few */
   const lakeM = inst(fishGeo, lake.length, FISH, 5);
 
   /* canal fish swim back and forth along the canals */
@@ -77,7 +77,7 @@ ready(async nv => {
     const cum = [0]; for (let i = 1; i < c.pts.length; i++) cum.push(cum[i - 1] + Math.hypot(c.pts[i][0] - c.pts[i - 1][0], c.pts[i][1] - c.pts[i - 1][1]));
     const len = cum[cum.length - 1]; if (len < 24) return;
     const n = 1;
-    for (let k = 0; k < n; k++) cf.push({ c, cum, len, u0: rr(0, len * 2), v: rr(1.2, 2.6), lat: rr(-1.1, 1.1), sc: rr(.28, .45) });
+    for (let k = 0; k < n; k++) cf.push({ c, cum, len, u0: rr(0, len * 2), v: rr(1.2, 2.6), lat: rr(-1.1, 1.1), sc: rr(.18, .28) });
   });
   const canM = inst(fishGeo, cf.length, FISH, 5);
   function onLine(f, u) { /* point and direction at distance u along the canal */
@@ -92,12 +92,12 @@ ready(async nv => {
   star.closePath();
   const starGeo = part(new THREE.ExtrudeGeometry(star, { depth: .22, bevelEnabled: true, bevelSize: .07, bevelThickness: .07, bevelSegments: 1 }).rotateX(-Math.PI / 2), S(1, 1, 1));
   const spots = [];
-  for (let t = 0; t < 9000 && spots.length < 16; t++) {
+  for (let t = 0; t < 9000 && spots.length < 3; t++) {
     const x = rr(-185, 185), z = rr(-190, 22), h = H(x, z);
     if (h > WL - 1.5 && h < WL - .05) spots.push([x, Math.max(h + .2, WL - .3), z]);
   }
   const starM = inst(starGeo, spots.length, ['#ff7a3d', '#f2545b', '#ffb13b', '#ff8fa3', '#e9684a'], 5);
-  spots.forEach((p, i) => { dm.position.set(p[0], p[1], p[2]); dm.rotation.set(0, rr(0, 6.28), 0); dm.scale.setScalar(rr(1, 1.7)); dm.updateMatrix(); starM.setMatrixAt(i, dm.matrix); });
+  spots.forEach((p, i) => { dm.position.set(p[0], p[1], p[2]); dm.rotation.set(0, rr(0, 6.28), 0); dm.scale.setScalar(rr(.55, .85)); dm.updateMatrix(); starM.setMatrixAt(i, dm.matrix); });
   starM.instanceMatrix.needsUpdate = true;
 
   /* ---------- crabs on the shore ---------- */
@@ -109,9 +109,9 @@ ready(async nv => {
   ]);
   const near = (x, z) => [[5, 0], [-5, 0], [0, 5], [0, -5]].some(d => H(x + d[0], z + d[1]) < WL - .2);
   const shore = [];
-  for (let t = 0; t < 12000 && shore.length < 7; t++) {
+  for (let t = 0; t < 12000 && shore.length < 3; t++) {
     const x = rr(-185, 185), z = rr(-190, 30), h = H(x, z);
-    if (h > WL + .3 && h < WL + 1.2 && near(x, z)) shore.push({ x, z, y: h, a: rr(0, 6.28), sc: rr(.9, 1.4), ph: rr(0, 6.28), amp: rr(.8, 1.8) });
+    if (h > WL + .3 && h < WL + 1.2 && near(x, z)) shore.push({ x, z, y: h, a: rr(0, 6.28), sc: rr(.55, .8), ph: rr(0, 6.28), amp: rr(.8, 1.8) });
   }
   const crabM = inst(crabGeo, shore.length, ['#e4572e', '#d9402b', '#f08a3c', '#c9362b'], 4);
 
@@ -127,7 +127,7 @@ ready(async nv => {
       let dx = q[0] - p[0], dz = q[1] - p[1]; const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
       let x = p[0] - dz * f.side, z = p[1] + dx * f.side, y = WL - .12, pitch = 0;
       if (f.jt < 0 && T > f.jump) f.jt = T;
-      if (f.jt >= 0) { const u = (T - f.jt) / 1.1; if (u >= 1) { f.jt = -1; f.jump = T + rr(6, 16); } else { y += Math.sin(u * Math.PI) * 4.2; pitch = Math.cos(u * Math.PI) * .9; } }
+      if (f.jt >= 0) { const u = (T - f.jt) / 1.1; if (u >= 1) { f.jt = -1; f.jump = T + rr(6, 16); } else { y += Math.sin(u * Math.PI) * 1.6; pitch = Math.cos(u * Math.PI) * .9; } }
       ep(x, y, z, Math.atan2(-dz, dx) + Math.sin(T * 7 + i) * .12, pitch, f.sc);
       lakeM.setMatrixAt(i, dm.matrix);
     });

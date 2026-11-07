@@ -161,11 +161,11 @@ function win(b, x, y, zf, w, h, sh, flower, fcol) {
 const FL = ['#e0527a', '#f3a6c0', '#d9463a', '#fff3d6', '#f0b13a'];
 const WALL = ['#f3ead3', '#f6f2e8', '#f0d9a2', '#ecc9a8', '#dbe4e6', '#e9e1c8', '#f2e2c4'];
 const TIM = ['#6e4a31', '#8a5b39', '#5b3f2c', '#7a5a3a'];
-const ROOFS = ['#5a3f33', '#b4532e', '#6e7684', '#7a3b2c', '#6b4a38', '#8a4a34'];
+const ROOFS = ['#4a2f1f', '#7a5236', '#a77b52']; /* every house roof is one of three browns: dark, mid, light */
 const SHUT = ['#4a7c4a', '#b3372d', '#3f6a8f', '#2f6e62', '#c9772f'];
 
 /* ---------------- resident chalet ---------------- */
-export function chalet(b, x, y, z, yaw, u, smoke) {
+export function chalet(b, x, y, z, yaw, u, smoke, lite) {
   const r = rng(hs(u) + 5), pick = a => a[(r() * a.length) | 0];
   const w = 8 + r() * 2.2, d = 7 + r() * 1.4, wall = pick(WALL), tim = pick(TIM), roof = pick(ROOFS), sh = pick(SHUT);
   const floors = r() < .3 ? 3 : 2, hip = r() < .26, fence = r() < .55;
@@ -179,16 +179,16 @@ export function chalet(b, x, y, z, yaw, u, smoke) {
   b.box(0, .6, d / 2 + .03, 1.7, 2.9, .12, '#5c3a20');
   b.box(0, 3.3, d / 2 + .03, 1.7, .25, .14, '#f8f4e8');
   ramp(b, 0, d / 2 + .02, 3.3, .6, -.1, 2.6, '#cfc8b8', '#b9b2a2'); /* a gentle entrance ramp instead of a step */
-  win(b, -w * .29, 1.9, d / 2, 1.5, 1.7, sh, true, FL); win(b, w * .29, 1.9, d / 2, 1.5, 1.7, sh, true, FL);
+  win(b, -w * .29, 1.9, d / 2, 1.5, 1.7, sh, !lite, FL); win(b, w * .29, 1.9, d / 2, 1.5, 1.7, sh, !lite, FL);
   for (let f = 1; f < floors; f++) {
     const yy = 4.3 + (f - 1) * fh + .9;
-    win(b, -w * .3, yy, zu, 1.5, 1.8, sh, f > 1, FL); win(b, w * .3, yy, zu, 1.5, 1.8, sh, f > 1, FL);
+    win(b, -w * .3, yy, zu, 1.5, 1.8, sh, f > 1 && !lite, FL); win(b, w * .3, yy, zu, 1.5, 1.8, sh, f > 1 && !lite, FL);
     if (f === 1) {
       b.box(0, yy - .1, zu + .03, 1.4, 2, .1, '#4f7894'); b.box(0, yy - .15, zu + .02, 1.9, 2.15, .08, '#f8f4e8');
       b.box(0, 4.15, zu + .8, w * .62, .22, 1.6, '#7a5336');
       for (let i = 0; i <= 8; i++) b.box(-w * .31 + i * w * .62 / 8, 4.37, zu + 1.5, .1, .85, .1, '#8a5b39');
       b.box(0, 5.2, zu + 1.5, w * .62, .1, .16, '#8a5b39');
-      windowBox(b, 0, 5.2, zu + 1.5, w * .6, 91);
+      if (!lite) windowBox(b, 0, 5.2, zu + 1.5, w * .6, 91);
     }
   }
   let rh;
@@ -197,11 +197,51 @@ export function chalet(b, x, y, z, yaw, u, smoke) {
   const cxm = w * .24, czm = -d * .12;
   b.box(cxm, top + .3, czm, 1, rh + 1.1, 1, '#a67856'); b.box(cxm, top + rh + 1.4, czm, 1.35, .3, 1.35, '#8c6244');
   if (smoke) smoke.push(b.world(cxm, top + rh + 1.9, czm));
-  if (fence) {
+  if (fence && !lite) {
     const zf = d / 2 + 3.4;
     for (let i = -5; i <= 5; i++) { if (Math.abs(i) < 1) continue; b.box(i * .85, .0, zf, .2, 1.0, .12, '#f5f0e4'); }
     b.box(-2.6, .75, zf, 5, .1, .1, '#f5f0e4'); b.box(2.6, .75, zf, 5, .1, .1, '#f5f0e4');
   }
+}
+
+/* ---------------- town house: the old-town look from the photo (cream or pastel front, steep brown roof with dormers, striped awning, ivy) ---------------- */
+const TWALL = ['#f1e4c3', '#ead7aa', '#d4e2e6', '#f2dcc9', '#e3e8cf', '#f4ecd8'];
+export function townhouse(b, x, y, z, yaw, u, smoke, lite) {
+  const r = rng(hs(u) + 11), pick = a => a[(r() * a.length) | 0];
+  const w = 8.6 + r() * 1.4, d = 7.4 + r() * .7, wall = pick(TWALL), floors = r() < .45 ? 3 : 2, roof = pick(ROOFS), shut = pick(['#2f5a3c', '#3a4a6a', '#4a2f1f']);
+  const awn = pick(['#b3372d', '#1f6b5c', '#2b4c7e']), TRIM = '#fbf6ea', door = pick(['#6b2a2e', '#4a2f1f', '#2f5a3c']);
+  b.at(x, y, z, yaw);
+  b.box(0, -3.2, 0, w + .5, 3.8, d + .5, '#8f897d');
+  b.box(0, .6, 0, w, 3.7, d, wall);
+  let top = 4.3; const fh = 3.3;
+  for (let f = 1; f < floors; f++) { b.box(0, top, 0, w, fh, d, wall); b.box(0, top - .12, 0, w + .3, .26, d + .3, TRIM); top += fh; }
+  b.box(0, top - .3, 0, w + .6, .4, d + .6, TRIM); /* cornice */
+  for (const s of [-1, 1]) b.box(s * (w / 2 - .12), .6, d / 2 + .05, .36, top - .9, .12, TRIM); /* corner pilasters */
+  /* ground floor: door on one side, a tall shop-style window on the other, a striped awning over both */
+  b.box(-w * .24, .6, d / 2 + .04, 1.5, 2.8, .12, door); b.box(-w * .24, 3.4, d / 2 + .04, 1.9, .24, .14, TRIM);
+  win(b, w * .2, 1.3, d / 2, 2.6, 2.0, shut, false, FL);
+  const ax = 0, aw = w * .86, n = 8;
+  for (let i = 0; i < n; i++) b.box(ax - aw / 2 + (i + .5) * aw / n, 3.55 - (i % 1) * 0, d / 2 + .9, aw / n, .1, 1.7, i % 2 ? '#f6ece0' : awn);
+  b.box(ax, 3.2, d / 2 + 1.7, aw, .32, .08, awn);
+  for (let f = 1; f < floors; f++) {
+    const yy = 4.3 + (f - 1) * fh + .8;
+    win(b, -w * .27, yy, d / 2, 1.3, 1.8, shut, !lite && f === 1, FL); win(b, w * .27, yy, d / 2, 1.3, 1.8, shut, !lite && f === 1, FL); win(b, 0, yy, d / 2, 1.1, 1.8, shut, false, FL);
+  }
+  /* steep roof (ridge along the street), two dormers, chimney */
+  const rh = (d / 2 + .6) * 1.15, dd = d + .4, ze = dd / 2 + .6;
+  b.gableX(0, top, 0, w + .4, dd, rh, .6, roof, wall);
+  for (const s of [-1, 1]) {
+    const zd = dd / 2 - .3, ys = top + rh * (1 - zd / ze) - .15, cx = s * w * .27;
+    b.box(cx, ys, zd - .5, 1.6, 1.7, 1.5, wall); b.gable(cx, ys + 1.7, zd - .5, 1.6, 1.5, .85, .18, roof, wall);
+    b.box(cx, ys + .3, zd + .27, .9, 1.0, .06, '#4f7894'); b.box(cx, ys + .25, zd + .24, 1.2, 1.2, .05, TRIM);
+  }
+  b.box(w * .3, top + rh * .45, -d * .1, .9, rh * .8 + .9, .9, '#a67856'); b.box(w * .3, top + rh * 1.2 + .9, -d * .1, 1.25, .26, 1.25, '#8c6244');
+  if (smoke) smoke.push(b.world(w * .3, top + rh * 1.2 + 1.5, -d * .1));
+  /* ivy on a side wall and one corner */
+  const iv = r() < .5 ? 1 : -1;
+  b.box(iv * (w / 2 + .05), .8, d * .06, .1, top - 1.4, d * .5, '#4d7a3a'); b.box(iv * (w / 2 + .1), 1.6, d * .12, .08, top - 3.4, d * .3, '#5f9448');
+  b.box(-iv * (w / 2 - .1), 1.0, d / 2 + .09, .5, top - 2.4, .08, '#4d7a3a');
+  if (!lite) { const zf = d / 2 + 2.6; for (let i = -4; i <= 4; i++) b.box(i * 1.0, 0, zf, .14, .8, .1, '#2f4a36'); b.box(0, .6, zf, 8, .08, .08, '#2f4a36'); }
 }
 export function openLot(b, x, y, z, yaw) {
   b.at(x, y, z, yaw);
@@ -397,11 +437,11 @@ export function shop(b, S, owned) {
 }
 
 /* ---------------- lakeview cottage (north shore): calm and minimal, every one in its own soft colour ---------------- */
-const COTW = ['#f7c6d2', '#f9dcae', '#f6efb0', '#c4eac6', '#bde0f6', '#dccff6', '#f6b7a4', '#fff6e6']; /* rose, apricot, lemon, mint, sky, lilac, coral, cream. rooms.js uses the same order for the inside */
-const COTR = ['#c9604a', '#5f93a3', '#6a7fb5', '#8a6f9e', '#d9a441', '#5e9a64', '#b24a5a', '#7a5c48'];
+const COTW = ['#eadfca', '#e4d6bb', '#e8dcc4', '#e1d2b6', '#ebe1cd', '#e3d4b9', '#e6d8be', '#ece2d0']; /* rose, apricot, lemon, mint, sky, lilac, coral, cream. rooms.js uses the same order for the inside */
+const COTR = ['#4a2f1f', '#7a5236', '#a77b52', '#4a2f1f', '#7a5236', '#a77b52', '#4a2f1f', '#7a5236'];
 export function cottage(b, C, owned, smoke) {
   const r = rng(C.i * 97 + 13), pick = a => a[(r() * a.length) | 0], row = Math.floor(C.i / 10);
-  const wall = COTW[(C.i * 3 + row * 5) % 8], roof = COTR[(C.i * 5 + row * 3 + 2) % 8], door = pick(['#c9604a', '#3f7a8f', '#e0a43a', '#4f9d69', '#8a62c4', '#d9577f']);
+  const wall = COTW[(C.i * 3 + row * 5) % 8], roof = COTR[(C.i * 5 + row * 3 + 2) % 8], door = pick(['#5a3a24', '#7a5236', '#3f2a1b']);
   const w = 6.6, d = 5.4, zf = d / 2, gz = zf + 4.1, trim = '#fffaf0';
   b.at(C.x, C.y, C.z, C.yaw);
   b.box(0, -2.6, 0, w + .5, 3.2, d + .5, '#9a948a');

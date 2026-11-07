@@ -1,7 +1,7 @@
 /* Nestville town: renderer, terrain, camera, UI */
 import * as THREE from './lib.js';
 import { paths, pavement } from './paths.js';
-import { MB, chalet, openLot, penthouse, castleLake, castleEast, castleIsland, watchtower, church, fountain, shop, cottage, pier, boat, lamp, K } from './build.js';
+import { MB, chalet, townhouse, openLot, penthouse, castleLake, castleEast, castleIsland, watchtower, church, fountain, shop, cottage, pier, boat, lamp, K } from './build.js';
 import { H, B, TOWN, L, layout, baseH, xr, Rs, roadDist, plazas, sz, laneZ, canals, canalDist, WL, RIVER_Z0, RIVER_Z1, sm, fbm } from './world.js';
 import { load, save, PH_PRICES, SHOP_PRICE, COT_PRICES, KINDS, IG_DM, fmt, avatar, stats, rng } from './shared.js';
 import './folks.js'; /* the people strolling on the sidewalks */
@@ -27,7 +27,7 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 stage.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 const HORIZON = '#cfe3ee';
-scene.fog = new THREE.Fog(HORIZON, 420, 1900);
+scene.fog = new THREE.Fog(HORIZON, 620, 2500);
 const camera = new THREE.PerspectiveCamera(46, 1, 1, 3500);
 
 const hemi = new THREE.HemisphereLight('#cfe6f6', '#8c7d5c', 1.05);
@@ -202,7 +202,7 @@ function buildStatic() {
 function buildDyn() {
   disposeGroup(dyn); smokeSrc.length = 0;
   const bh = new MB(), bp = new MB(), bs = new MB(), bc = new MB();
-  L.houses.forEach(h => { const r = S.houses[h.idx]; if (r) chalet(bh, h.x, h.y, h.z, h.yaw, r.u, smokeSrc); else openLot(bh, h.x, h.y, h.z, h.yaw); });
+  L.houses.forEach(h => { const r = S.houses[h.idx], u = r ? r.u : 'home' + h.idx, f = h.style === 'town' ? townhouse : chalet; f(bh, h.x, h.y, h.z, h.yaw, u, r ? smokeSrc : null, !r); }); /* every plot is a real house now; the empty ones are simpler and carry the little sign */
   L.pent.forEach(p => penthouse(bp, p, !!S.ph[p.i]));
   L.shops.forEach(s => shop(bs, s, !!S.shops[s.i]));
   L.cot.forEach(c => cottage(bc, c, !!S.cot[c.i], smokeSrc));
@@ -251,7 +251,7 @@ function streetSpots() {
   L.pent.forEach(p => blk.push([p.x, p.z, 8.6]));
   L.castles.forEach(c => blk.push([c.x, c.z, c.r + 3]));
   blk.push([L.church.x, L.church.z, 14], [L.plaza.x, L.plaza.z, 11]);
-  L.bridges.forEach(br => blk.push([br.x, br.z, 12]));
+  L.bridges.filter(br => br.big).forEach(br => blk.push([br.x, br.z, 14]));
   const free = (x, z) => {
     if (H(x, z) < .9 || canalDist(x, z) < 2.4) return false;
     for (const q of boxes) if (Math.abs(x - q[0]) < q[2] && Math.abs(z - q[1]) < q[3]) return false;
@@ -275,7 +275,7 @@ function lampSpots() {
   L.pent.forEach(p => blk.push([p.x, p.z, 8.6]));
   L.castles.forEach(c => blk.push([c.x, c.z, c.r + 3]));
   blk.push([L.church.x, L.church.z, 14], [L.plaza.x, L.plaza.z, 11]);
-  L.bridges.forEach(br => blk.push([br.x, br.z, 12]));
+  L.bridges.filter(br => br.big).forEach(br => blk.push([br.x, br.z, 14]));
   L.houses.forEach(h => boxes.push([h.x, h.z, 5.6, 5.2]));
   L.shops.forEach(s => boxes.push([s.x, s.z, 5.6, 5.2]));
   const ok = (x, z) => {
@@ -305,7 +305,7 @@ function plantTrees(n) {
   const con = [], brd = []; let tries = 0;
   while (con.length + brd.length < n && tries < n * 14) {
     tries++;
-    const x = -330 + r() * 660, z = -330 + r() * 710, h = H(x, z);
+    const x = -470 + r() * 940, z = -450 + r() * 930, h = H(x, z);
     if (h < 1.7 || h > 95) continue;
     if (x > TOWN.x0 && x < TOWN.x1 && z > TOWN.z0 && z < 150) continue; /* the village: trees only along the sidewalks */
     if (Math.abs(x) < 125 && z > -285 && z < -165) continue; /* the cottage district and its shore stay open */
@@ -428,7 +428,7 @@ function updateCam(dt) {
 function pan(dx, dy) {
   if (view.mode !== 'orbit') return;
   const s = goal.dist * .0016, fx_ = -Math.sin(goal.yaw), fz = -Math.cos(goal.yaw), rx = Math.cos(goal.yaw), rz = -Math.sin(goal.yaw);
-  goal.tx = clamp(goal.tx + fx_ * dy * s - rx * dx * s, TOWN.x0 - 60, TOWN.x1 + 60); goal.tz = clamp(goal.tz + fz * dy * s - rz * dx * s, B.z0 + 140, B.z1 - 90);
+  goal.tx = clamp(goal.tx + fx_ * dy * s - rx * dx * s, TOWN.x0 - 150, TOWN.x1 + 150); goal.tz = clamp(goal.tz + fz * dy * s - rz * dx * s, B.z0 + 140, B.z1 - 90);
   goal.ty = Math.max(2, H(goal.tx, goal.tz) + 3);
 }
 const ptr = new Map(); let down = null, lastPinch = 0, lastMid = null;
@@ -597,13 +597,14 @@ function syncViews() { document.querySelectorAll('#views [data-v]').forEach(b =>
 /* eye level on the sidewalk, or on the stone bridge where the row crosses the river */
 function walkY(x, z) {
   const br = L.bridges[view.row];
-  return (br && Math.abs(x - br.x) < 10.6 ? br.y + 1 : Math.max(H(x, z), WL) + .16) + 1.75;
+  return (br && br.big && Math.abs(x - br.x) < 10.6 ? br.y + 1 : Math.max(H(x, z), WL) + .16) + 1.75;
 }
 function walkTo(x) { /* stand ON the sidewalk of the current row, at x */
   if (x < -158 || x > 158) return false;
   const lz = laneZ(view.row, x), cx = L.church.x, cz = L.church.z;
   if (Math.abs(x - cx) < 23 && lz > cz - 29 && lz < cz + 15) return false; /* the church square */
   const z = lz + .9; /* the sidewalk line (see world.js) */
+  { const br = L.bridges[view.row]; if (br && !br.big && Math.abs(x - br.x) < 10.8) return false; } /* no bridge on this row any more */
   view.wx = x; goal.tx = x; goal.tz = z; goal.ty = walkY(x, z);
   return true;
 }

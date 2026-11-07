@@ -7,7 +7,7 @@
    NEW: surfaceY(x, z) gives the height of any walkable surface (sidewalk, bridge, pier) for the first-person walk (walk.js). */
 import { H } from './world.js';
 import { K, qd, bicycle } from './build.js';
-import { bridge, fbridge, FB, fbY } from './bridges.js';
+import { bridge, bigBridge, fbridge, FB, fbY } from './bridges.js';
 
 const WALK = '#d9d4c7', EDGE = '#c8c2b3', JOINT = '#bcb6a7', PATH = '#e6dec8', LIFT = .16;
 
@@ -137,8 +137,9 @@ export function paths(b, L) {
     const yW = topAt(rowS[br.row], br.x - 10), yE = topAt(rowS[br.row], br.x + 10), old = br.y + 1;
     const w = yW !== null ? yW : (yE !== null ? yE : old), e = yE !== null ? yE : w;
     br.y = (w + e) / 2 - 1; br.slope = Math.atan2(e - w, 20);
-    bridge(b, br.x, br.y, br.z, br.yaw || 0, br.slope);
-    addSurf(br.x - 10, br.zw !== undefined ? br.zw : br.z, br.x + 10, br.ze !== undefined ? br.ze : br.z, 2.3, w, e);
+    if (!br.big) return; /* only ONE bridge is left: the big brown one */
+    bigBridge(b, br.x, br.y, br.z, br.yaw || 0, br.slope);
+    addSurf(br.x - 10, br.zw !== undefined ? br.zw : br.z, br.x + 10, br.ze !== undefined ? br.ze : br.z, 4.6, w, e);
   });
   /* footbridges: north end meets the bank walk, south end meets the row-0 sidewalk */
   L.fbr.forEach(f => {

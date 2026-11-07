@@ -1,4 +1,5 @@
 /* Nestville visits: tap any unsold house, shop, cottage or penthouse, then "Look inside" to walk around the empty home before buying.
+   You walk with four buttons (forward, backward, turn left, turn right) or with the arrow keys / WASD. Walls and furniture block you.
    (The green dots are gone: empty houses are marked by the small sign from extras.js.)
    Runs next to town.js and reads the same scene (window.__nv). */
 import * as THREE from './lib.js';
@@ -16,6 +17,7 @@ ready(nv => {
   const specOf = e => e.kind === 'house' ? { kind: 'house', n: e.ref.idx } : e.kind === 'shop' ? { kind: 'shop', n: e.ref.i, name: KINDS[e.ref.i] } : e.kind === 'cot' ? { kind: 'cot', n: e.ref.i } : { kind: 'ph', n: e.ref.i };
   const priceOf = e => e.kind === 'ph' ? PH_PRICES[e.ref.i] : e.kind === 'shop' ? SHOP_PRICE : e.kind === 'cot' ? COT_PRICES[e.ref.i] : 0;
   const word = { house: 'house', shop: 'shop', cot: 'cottage', ph: 'penthouse' };
+  const FREE_MSG = 'Cottages are free. Message me on Instagram to get yours.';
 
   /* ---------- "Look inside" button on the card ---------- */
   const card = $('card');
@@ -27,11 +29,18 @@ ready(nv => {
   new MutationObserver(addBtn).observe(card, { childList: true });
   card.addEventListener('click', ev => { if (ev.target.closest('[data-visit]') && nv.sel) enter(nv.sel); });
 
+  /* ---------- cottages are free: the Buy buttons in the card and the menu say so ---------- */
+  const relabel = () => document.querySelectorAll('[data-a="buy"][data-k="cot"]').forEach(b => { if (b.textContent !== 'Get it free') b.textContent = 'Get it free'; });
+  new MutationObserver(relabel).observe(card, { childList: true });
+  if ($('pane')) new MutationObserver(relabel).observe($('pane'), { childList: true });
+  document.addEventListener('click', ev => {
+    const b = ev.target.closest && ev.target.closest('[data-a="buy"][data-k="cot"]'); if (!b) return;
+    ev.stopPropagation(); getFree();
+  }, true);
+  function getFree() { if (IG_DM) window.open(IG_DM, '_blank', 'noopener'); else say(FREE_MSG); }
+
   /* ---------- the visit screen ---------- */
   const ico = {
-    cut: '<path d="M4 9l8-5 8 5v8l-8 5-8-5zM4 9l8 5 8-5M12 14v8"/>',
-    liv: '<path d="M5 12V9a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v3M3 13a2 2 0 0 1 4 0v2h10v-2a2 2 0 0 1 4 0v4H3zM6 17v2M18 17v2"/>',
-    bed: '<path d="M3 18V7M3 14h18v4M21 14v-2a3 3 0 0 0-3-3h-7v5"/><circle cx="7" cy="11.5" r="1.3"/>',
     view: '<path d="M3 19l6-9 4 6 2-3 6 6z"/><circle cx="17" cy="6.5" r="1.5"/>',
     x: '<path d="M6 6l12 12M18 6L6 18"/>'
   };
@@ -41,8 +50,34 @@ ready(nv => {
   document.body.appendChild(bar);
   const hint = document.createElement('div');
   hint.className = 'gl'; hint.style.cssText = 'position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 12px);transform:translateX(-50%);border-radius:99px;padding:6px 14px;font-weight:700;font-size:12px;display:none;z-index:6;white-space:nowrap';
-  hint.textContent = 'Drag to look around'; document.body.appendChild(hint);
+  hint.textContent = 'Hold the arrows to walk around'; document.body.appendChild(hint);
   const HIDE = ['labels', 'card', 'bar', 'views', 'sheet', 'top'];
+
+  /* the four walking buttons: forward, backward, turn left, turn right */
+  const hold = { f: 0, b: 0, l: 0, r: 0 };
+  const ARROWS = {
+    f: [2, 1, 'Walk forward', '<path d="M12 19V5M5 12l7-7 7 7"/>'],
+    l: [1, 2, 'Turn left', '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>'],
+    r: [3, 2, 'Turn right', '<path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/>'],
+    b: [2, 3, 'Walk backward', '<path d="M12 5v14M19 12l-7 7-7-7"/>']
+  };
+  const pad = document.createElement('div');
+  pad.id = 'pad'; pad.className = 'gl';
+  pad.style.cssText = 'position:fixed;right:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 104px);display:none;z-index:6;padding:4px;border-radius:18px;grid-template-columns:repeat(3,36px);grid-template-rows:repeat(3,36px);gap:3px;opacity:.92;touch-action:none;user-select:none;-webkit-user-select:none';
+  pad.innerHTML = Object.keys(ARROWS).map(k => { const a = ARROWS[k]; return '<button class="pb g" data-m="' + k + '" aria-label="' + a[2] + '" title="' + a[2] + '" style="grid-column:' + a[0] + ';grid-row:' + a[1] + ';width:36px;height:36px;padding:0;border-radius:12px;display:flex;align-items:center;justify-content:center;touch-action:none"><svg viewBox="0 0 24 24" width="18" height="18" style="stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round">' + a[3] + '</svg></button>'; }).join('');
+  document.body.appendChild(pad);
+  pad.addEventListener('pointerdown', ev => {
+    const b = ev.target.closest('[data-m]'); if (!b) return;
+    ev.preventDefault(); hold[b.dataset.m] = 1; try { b.setPointerCapture(ev.pointerId); } catch (e) { }
+  });
+  const release = ev => { const b = ev.target.closest && ev.target.closest('[data-m]'); if (b) hold[b.dataset.m] = 0; };
+  pad.addEventListener('pointerup', release); pad.addEventListener('pointercancel', release); pad.addEventListener('lostpointercapture', release);
+  pad.addEventListener('contextmenu', e => e.preventDefault());
+  const KEYMAP = { arrowup: 'f', w: 'f', arrowdown: 'b', s: 'b', arrowleft: 'l', a: 'l', q: 'l', arrowright: 'r', d: 'r', e: 'r' };
+  addEventListener('keydown', e => { if (!visiting || (e.target && e.target.tagName === 'INPUT')) return; const m = KEYMAP[e.key.toLowerCase()]; if (m) { hold[m] = 1; e.preventDefault(); } });
+  addEventListener('keyup', e => { const m = KEYMAP[e.key.toLowerCase()]; if (m) hold[m] = 0; });
+  addEventListener('blur', () => { stopHold(); });
+  function stopHold() { hold.f = hold.b = hold.l = hold.r = 0; }
 
   /* ---------- panorama: mountains and lake seen through the windows ---------- */
   let panoTex = null, discTex = null;
@@ -85,48 +120,78 @@ ready(nv => {
     return rt;
   }
 
-  /* ---------- camera state ---------- */
-  let bgRT = null, bgSave = null, visiting = false, snap = null, room = null, ent = null, outer = null, pano = null, disc = null, mode = 'cut', camIdx = 0, hemi = null, hemiSave = null;
-  const P = { pos: new THREE.Vector3(), quat: new THREE.Quaternion(), fov: 60 };
-  const D = { oyaw: .25, opitch: .7, dist: 20, fyaw: 0, fpitch: 0, fpos: new THREE.Vector3(), ffov: 72, tgt: new THREE.Vector3() };
-  const tmpO = new THREE.Object3D(), eul = new THREE.Euler(0, 0, 0, 'YXZ'), want = new THREE.Vector3(), wantQ = new THREE.Quaternion();
-  let lastT = 0, snapNext = false;
+  /* ---------- walking inside the room ---------- */
+  let bgRT = null, bgSave = null, visiting = false, snap = null, room = null, ent = null, outer = null, pano = null, disc = null, hemi = null, hemiSave = null;
+  const ME = { x: 0, z: 0, yaw: 0 }, RAD = .3;
+  const eul = new THREE.Euler(0, 0, 0, 'YXZ');
+  let obs = [], lastT = 0, moving = false;
 
-  function setMode(m, i) {
-    mode = m; camIdx = i || 0; room.cap.visible = m !== 'cut';
-    if (m === 'cut') { D.oyaw = .25; D.opitch = .7; D.tgt.set(OX, 1.1, OZ); D.dist = Math.max(room.W, room.D * 1.3) * 1.18; }
-    else { const c = room.cams[i]; D.fpos.set(OX + c.x, c.y, OZ + c.z); D.fyaw = c.yaw; D.fpitch = c.pitch; D.ffov = c.fov; }
-    bar.querySelectorAll('[data-cam]').forEach(b => b.classList.toggle('on', b.dataset.cam === m + (m === 'cut' ? '' : i)));
+  /* everything a person would bump into (walls, furniture), as flat boxes seen from above. Door openings stay free because their lintel starts above head height. */
+  function collect() {
+    obs = []; outer.updateMatrixWorld(true);
+    const b = new THREE.Box3();
+    room.group.traverse(o => {
+      if (!o.isMesh) return;
+      b.setFromObject(o);
+      if (!(b.max.y > .4 && b.min.y < 1.3)) return;
+      const w = b.max.x - b.min.x, d = b.max.z - b.min.z;
+      if ((w < .05 && d < .05) || w > room.W + 1 || d > room.D + 1) return;
+      obs.push([b.min.x - OX, b.max.x - OX, b.min.z - OZ, b.max.z - OZ]);
+    });
+  }
+  function blocked(x, z, r) {
+    for (const o of obs) { const cx = clamp(x, o[0], o[1]), cz = clamp(z, o[2], o[3]); if ((x - cx) * (x - cx) + (z - cz) * (z - cz) < r * r) return true; }
+    return false;
+  }
+  function resolve(x, z) {
+    const hx = room.W / 2 - RAD, hz = room.D / 2 - RAD;
+    for (let it = 0; it < 3; it++) {
+      for (const o of obs) {
+        const cx = clamp(x, o[0], o[1]), cz = clamp(z, o[2], o[3]), dx = x - cx, dz = z - cz, d2 = dx * dx + dz * dz;
+        if (d2 >= RAD * RAD) continue;
+        if (d2 > 1e-8) { const d = Math.sqrt(d2), k = (RAD - d) / d; x += dx * k; z += dz * k; }
+        else { /* the centre is inside the box: leave by the nearest face */
+          const l = x - o[0], r = o[1] - x, t = z - o[2], bk = o[3] - z, m = Math.min(l, r, t, bk);
+          if (m === l) x = o[0] - RAD; else if (m === r) x = o[1] + RAD; else if (m === t) z = o[2] - RAD; else z = o[3] + RAD;
+        }
+      }
+      x = clamp(x, -hx, hx); z = clamp(z, -hz, hz);
+    }
+    return [x, z];
+  }
+  /* start just inside the front door, looking toward the lake windows; if furniture is in the way, take the nearest free spot */
+  function spawn() {
+    const wx = -1.5, wz = room.D / 2 - 1.0; let best = null;
+    for (let r = 0; r <= 3 && !best; r += .25) {
+      const n = r ? 16 : 1;
+      for (let a = 0; a < n; a++) {
+        const x = wx + Math.cos(a / 16 * 6.283) * r, z = wz + Math.sin(a / 16 * 6.283) * r;
+        if (x < -room.W / 2 + RAD || x > room.W / 2 - RAD || z > room.D / 2 - RAD || z < -room.D / 2 + RAD) continue;
+        if (!blocked(x, z, RAD + .05)) { best = [x, z]; break; }
+      }
+    }
+    ME.x = best ? best[0] : 0; ME.z = best ? best[1] : 0; ME.yaw = 0;
+  }
+  function step(dt) {
+    dt = Math.min(dt, .05);
+    ME.yaw += (hold.l - hold.r) * 1.7 * dt;
+    const v = hold.f - hold.b; moving = v !== 0;
+    if (moving) {
+      const sp = (v > 0 ? 2.1 : 1.5) * dt, p = resolve(ME.x - Math.sin(ME.yaw) * v * sp, ME.z - Math.cos(ME.yaw) * v * sp);
+      ME.x = p[0]; ME.z = p[1];
+    }
   }
   function applyCam() {
-    const now = performance.now(), dt = Math.min(.1, (now - (lastT || now)) / 1000); lastT = now;
-    const k = 1 - Math.exp(-dt * 5);
-    if (mode === 'cut') {
-      const cp = Math.cos(D.opitch);
-      want.set(D.tgt.x + Math.sin(D.oyaw) * cp * D.dist, D.tgt.y + Math.sin(D.opitch) * D.dist, D.tgt.z + Math.cos(D.oyaw) * cp * D.dist);
-      tmpO.position.copy(want); tmpO.lookAt(D.tgt); wantQ.copy(tmpO.quaternion);
-    } else { want.copy(D.fpos); eul.set(D.fpitch, D.fyaw, 0); wantQ.setFromEuler(eul); }
-    const fov = mode === 'cut' ? 52 : D.ffov;
-    if (snapNext) { P.pos.copy(want); P.quat.copy(wantQ); P.fov = fov; snapNext = false; }
-    else { P.pos.lerp(want, k); P.quat.slerp(wantQ, k); P.fov += (fov - P.fov) * k; }
-    camera.position.copy(P.pos); camera.quaternion.copy(P.quat); camera.fov = P.fov * (innerWidth / innerHeight < .75 ? 1.12 : 1);
+    const now = performance.now(), dt = (now - (lastT || now)) / 1000; lastT = now;
+    step(dt);
+    const eye = (room.isPh ? 1.7 : 1.6) + (moving ? Math.sin(now * .008) * .02 : 0);
+    camera.position.set(OX + ME.x, eye, OZ + ME.z);
+    eul.set(0, ME.yaw, 0); camera.quaternion.setFromEuler(eul);
+    camera.fov = 72 * (innerWidth / innerHeight < .75 ? 1.12 : 1);
     camera.near = .1; camera.far = 700; camera.updateProjectionMatrix();
   }
   const rend = nv.renderer, origRender = rend.render.bind(rend);
   rend.render = function (s, c) { if (visiting) applyCam(); origRender(s, c); };
-
-  /* ---------- drag to look ---------- */
-  const cv = nv.renderer.domElement, ptrs = new Set(); let lx = 0, ly = 0;
-  cv.addEventListener('pointerdown', e => { ptrs.add(e.pointerId); lx = e.clientX; ly = e.clientY; });
-  const up = e => { ptrs.delete(e.pointerId); };
-  cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
-  cv.addEventListener('pointermove', e => {
-    if (!visiting || !ptrs.has(e.pointerId) || ptrs.size !== 1) { lx = e.clientX; ly = e.clientY; return; }
-    const dx = e.clientX - lx, dy = e.clientY - ly; lx = e.clientX; ly = e.clientY;
-    if (mode === 'cut') { D.oyaw = clamp(D.oyaw - dx * .006, -1.4, 1.4); D.opitch = clamp(D.opitch + dy * .005, .2, 1.35); }
-    else { D.fyaw += dx * .005; D.fpitch = clamp(D.fpitch - dy * .004, -.7, .7); }
-  });
-  cv.addEventListener('wheel', e => { if (visiting && mode === 'cut') D.dist = clamp(D.dist * Math.exp(e.deltaY * .001), 8, 60); }, { passive: true });
 
   /* ---------- enter / leave ---------- */
   let toastT = 0;
@@ -138,7 +203,7 @@ ready(nv => {
     ent = e; room = buildRoom(specOf(e));
     snap = { cam: { ...nv.cam }, goal: { ...nv.goal }, mode: nv.view.mode, fog: scene.fog, near: camera.near, far: camera.far };
     outer = new THREE.Group(); outer.position.set(OX, 0, OZ);
-    outer.add(room.group);
+    outer.add(room.group); room.cap.visible = true; /* ceiling and front wall stay on: you are inside */
     const eye = room.isPh ? 1.7 : 1.6;
     if (bgRT) { bgSave = scene.background; scene.background = bgRT.texture; }
     else { /* fallback if the photo could not be taken: the old painted panorama */
@@ -148,27 +213,28 @@ ready(nv => {
       disc.position.y = room.isPh ? -40 : -.6; outer.add(disc);
     }
     scene.add(outer);
+    collect(); spawn(); stopHold();
     scene.fog = null; hemi = scene.children.find(o => o.isHemisphereLight);
-    if (hemi) { hemiSave = [hemi.intensity, hemi.groundColor.getHex()]; hemi.intensity = 1.55; hemi.groundColor.set('#fff1dc'); }
+    if (hemi) { hemiSave = [hemi.intensity, hemi.groundColor.getHex()]; hemi.intensity = 1.25; hemi.groundColor.set('#a98660'); }
     HIDE.forEach(id => { const el = $(id); if (el) el.style.display = 'none'; });
-    const price = priceOf(e), title = room.title + ' · ' + room.sub;
-    const btn = (id, ic, label) => '<button class="ib" data-cam="' + id + '" aria-label="' + label + '" title="' + label + '"><svg viewBox="0 0 24 24">' + ico[ic] + '</svg></button>';
-    bar.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:0 4px 6px"><b style="font:600 16px var(--fd)">' + title + '</b><span style="font-size:12.5px;color:var(--mute);font-weight:700">' + (price ? fmt(price) : 'Empty') + '</span></div>' +
-      '<div style="display:flex;gap:2px;align-items:center">' + btn('cut', 'cut', 'Cut-away view') + btn('fp0', 'liv', e.kind === 'shop' ? 'From the door' : 'Living room') + btn('fp1', 'bed', e.kind === 'shop' ? 'From the back' : 'Bedroom') +
+    const free = e.kind === 'cot', price = priceOf(e), title = room.title + ' · ' + room.sub;
+    bar.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:0 4px 6px"><b style="font:600 16px var(--fd)">' + title + '</b><span style="font-size:12.5px;color:var(--mute);font-weight:700">' + (free ? 'Free' : price ? fmt(price) : 'Empty') + '</span></div>' +
+      '<div style="display:flex;gap:2px;align-items:center">' +
       (room.isPh ? '<button class="ib" data-cam="roof" aria-label="View from the roof" title="View from the roof"><svg viewBox="0 0 24 24">' + ico.view + '</svg></button>' : '') +
-      '<span style="flex:1"></span>' + (price ? '<button class="pb gold" data-b="buy" style="height:34px;padding:0 14px;font-size:13px;border-radius:13px">Buy</button>' : '') + '<button class="ib" data-b="exit" aria-label="Leave" title="Leave"><svg viewBox="0 0 24 24">' + ico.x + '</svg></button></div>';
-    bar.style.display = 'block'; hint.style.display = 'block'; setTimeout(() => { hint.style.display = 'none'; }, 3200);
-    visiting = true; snapNext = true; lastT = 0; setMode('cut');
+      '<span style="flex:1"></span>' + (free ? '<button class="pb gold" data-b="free" style="height:34px;padding:0 14px;font-size:13px;border-radius:13px">Get it free</button>' : price ? '<button class="pb gold" data-b="buy" style="height:34px;padding:0 14px;font-size:13px;border-radius:13px">Buy</button>' : '') +
+      '<button class="ib" data-b="exit" aria-label="Leave" title="Leave"><svg viewBox="0 0 24 24">' + ico.x + '</svg></button></div>';
+    bar.style.display = 'block'; pad.style.display = 'grid'; hint.style.display = 'block'; setTimeout(() => { hint.style.display = 'none'; }, 3600);
+    visiting = true; lastT = 0;
   }
   function leave(toRoof) {
-    if (!visiting) return; visiting = false;
+    if (!visiting) return; visiting = false; stopHold();
     scene.remove(outer); [pano, disc].forEach(m => { if (m) { m.geometry.dispose(); m.material.dispose(); } }); pano = disc = null;
-    outer.traverse(o => { if (o.geometry && o.geometry.userData.own) o.geometry.dispose(); }); outer = null;
+    outer.traverse(o => { if (o.geometry && o.geometry.userData.own) o.geometry.dispose(); }); outer = null; obs = [];
     if (bgRT) { scene.background = bgSave; bgSave = null; bgRT.dispose(); bgRT = null; }
     scene.fog = snap.fog; if (hemi && hemiSave) { hemi.intensity = hemiSave[0]; hemi.groundColor.setHex(hemiSave[1]); }
     camera.near = 1; camera.far = 3500; camera.quaternion.identity(); camera.updateProjectionMatrix();
     Object.assign(nv.cam, snap.cam); Object.assign(nv.goal, snap.goal); nv.view.mode = snap.mode;
-    bar.style.display = 'none'; hint.style.display = 'none';
+    bar.style.display = 'none'; pad.style.display = 'none'; hint.style.display = 'none';
     HIDE.forEach(id => { const el = $(id); if (el) el.style.display = ''; });
     const e = ent; ent = null;
     if (toRoof && e && e.kind === 'ph') { nv.select(null); nv.view.pi = e.ref.i; nv.setView('ph'); }
@@ -177,9 +243,8 @@ ready(nv => {
   bar.addEventListener('click', ev => {
     const b = ev.target.closest('button'); if (!b) return;
     if (b.dataset.b === 'exit') leave(false);
+    else if (b.dataset.b === 'free') getFree();
     else if (b.dataset.b === 'buy') { if (IG_DM) window.open(IG_DM, '_blank', 'noopener'); else say('Buying opens soon. Message me on Instagram to reserve it.'); }
-    else if (b.dataset.cam === 'cut') setMode('cut');
     else if (b.dataset.cam === 'roof') leave(true);
-    else if (b.dataset.cam) setMode('fp', +b.dataset.cam.slice(2));
   });
 });

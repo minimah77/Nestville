@@ -46,3 +46,25 @@ export function fbridge(b, x, z, yN, yS) {
   for (const e of [-1, 1]) { const ye = e < 0 ? yN : yS; b.box(0, ye - 3.5, e * (L / 2 - .5), W, 3.1, 1.2, DARK); }
   for (const e of [-1, 1]) { const ye = (e < 0 ? yN : yS) + .004; for (const s of [-1, 1]) b.box(s * (hw - .13), ye, e * (L / 2 - .1), .34, .95, .34, CAP); }
 }
+
+/* THE bridge: one big brown timber bridge over the river. 20 long, 10 wide, planked deck, heavy side beams, wooden arch ribs, lamp posts at the ends. */
+export function bigBridge(b, x, y, z, yaw = 0, slope = 0) {
+  b.at(x, y, z, yaw);
+  const WOOD = '#7a5236', DARK = '#4a2f1c', LIGHT = '#a77b52';
+  b.sub(0, 0, 0, 0, () => {
+    b.box(0, 0, 0, 20, 1, 10, WOOD);
+    for (let i = 0; i < 20; i++) b.box(-9.5 + i, 1, 0, .94, .05, 9.8, i % 2 ? LIGHT : '#8f6540'); /* planks */
+    for (const s of [-1, 1]) {
+      b.box(0, 1, s * 4.7, 20, .45, .6, DARK); b.box(0, 2.05, s * 4.7, 20, .22, .5, DARK); /* low wall + hand rail */
+      for (let i = 0; i <= 10; i++) b.box(-10 + i * 2 - (i === 10 ? .3 : 0) + (i === 0 ? .3 : 0), 1, s * 4.7, .4, 1.3, .4, DARK);
+      for (const e of [-1, 1]) { b.box(e * 9.6, 1, s * 4.9, .7, 2.6, .7, DARK); b.box(e * 9.6, 3.6, s * 4.9, .46, 1.2, .46, '#e8c36a'); } /* lantern posts */
+    }
+    b.box(-8.2, -3.6, 0, 3.4, 4.6, 10, '#6b4a30'); b.box(8.2, -3.6, 0, 3.4, 4.6, 10, '#6b4a30'); /* abutments */
+    b.box(0, -.3, 0, 13, .3, 9.6, '#5a3d27');
+    const R = 8.75, cy0 = -9.0, n = 13;
+    for (let i = 0; i < n; i++) { /* wooden arch ribs under the deck on both faces and in the middle */
+      const a = (42 + 96 * (i + .5) / n) * Math.PI / 180, cx = Math.cos(a) * R, cy = Math.sin(a) * R + cy0;
+      for (const s of [-1, 0, 1]) b.sub(cx, cy, s * 4.3, 0, () => b.box(0, -.45, 0, 1.2, .9, s ? .6 : .5, i % 2 ? '#6b4a30' : '#7e5638'), a - Math.PI / 2);
+    }
+  }, slope);
+}
