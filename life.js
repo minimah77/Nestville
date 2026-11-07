@@ -92,7 +92,7 @@ ready(async nv => {
   star.closePath();
   const starGeo = part(new THREE.ExtrudeGeometry(star, { depth: .22, bevelEnabled: true, bevelSize: .07, bevelThickness: .07, bevelSegments: 1 }).rotateX(-Math.PI / 2), S(1, 1, 1));
   const spots = [];
-  for (let t = 0; t < 9000 && spots.length < 70; t++) {
+  for (let t = 0; t < 9000 && spots.length < 16; t++) {
     const x = rr(-185, 185), z = rr(-190, 22), h = H(x, z);
     if (h > WL - 1.5 && h < WL - .05) spots.push([x, Math.max(h + .2, WL - .3), z]);
   }
@@ -109,7 +109,7 @@ ready(async nv => {
   ]);
   const near = (x, z) => [[5, 0], [-5, 0], [0, 5], [0, -5]].some(d => H(x + d[0], z + d[1]) < WL - .2);
   const shore = [];
-  for (let t = 0; t < 12000 && shore.length < 26; t++) {
+  for (let t = 0; t < 12000 && shore.length < 7; t++) {
     const x = rr(-185, 185), z = rr(-190, 30), h = H(x, z);
     if (h > WL + .3 && h < WL + 1.2 && near(x, z)) shore.push({ x, z, y: h, a: rr(0, 6.28), sc: rr(.9, 1.4), ph: rr(0, 6.28), amp: rr(.8, 1.8) });
   }
