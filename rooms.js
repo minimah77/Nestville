@@ -1,6 +1,7 @@
-/* Nestville interiors: cozy cut-away rooms built from boxes, with a few tiny canvas textures (wood, wallpaper, rugs).
+/* Nestville interiors: soft, cozy cut-away rooms (pastel two-tone walls, honey floors, round rugs, rounded sofas) with MANY SMALL cute details.
    Room space: x left/right, z from the lake side (-z, big windows) to the entrance (+z). Floor is y = 0.
-   houses: 5 looks (3 of them from your Blender references) | cottages: calm minimal rooms, 8 soft colours (same colour as the outside) | penthouses: 2 pastel looks | each shop has its own look */
+   houses: 5 looks from your Blender pictures | cottages: 8 soft colours | penthouses: 2 pastel looks | each shop has its own look.
+   Rules: furniture near the front door stays low (nothing taller than a dresser), so you never walk into a wall of furniture. */
 import * as THREE from './lib.js';
 
 const G = { box: new THREE.BoxGeometry(1, 1, 1), cyl: new THREE.CylinderGeometry(1, 1, 1, 18), sph: new THREE.SphereGeometry(1, 14, 10), cone: new THREE.CylinderGeometry(1, .14, 1, 18), bkt: new THREE.CylinderGeometry(1, .8, 1, 22) };
@@ -71,27 +72,29 @@ function sph(g, x, y, z, r, c, sy) { return put(g, G.sph, c, x, y, z, r, r * (sy
 function rod(g, x, y, z, r, len, c, ax) { const m = put(g, G.cyl, c, x, y, z, r, len, r); if (ax === 'x') m.rotation.z = PI / 2; else if (ax === 'z') m.rotation.x = PI / 2; return m; }
 function sub(g, x, z, ry) { const s = new THREE.Group(); s.position.set(x, 0, z); s.rotation.y = ry || 0; g.add(s); return s; }
 
-/* ---------- looks ---------- */
-const HT = [ /* houses: nordic white | vintage green | cream | sage | rose */
-  { wall: '#f1eee7', floor: '@wood|#e6c99d', trim: '#ffffff', sofa: '#eee7dc', acc: '#8fb4d0', acc2: '#e8c264', wood: '#d9b685', curtain: '#ffffff', kit: '#f3efe6', top: '#e9e4da', lamp: 'arc', focal: 'tv', sheet: '#f4efe6', rug: '#a9b9c6', fl: 'daisy', flc: ['#ffffff', '#fff3d6', '#ffe3ef'] },
+/* ---------- looks (soft pastel, like the Blender pictures) ---------- */
+const HT = [ /* houses: mint and butter | vintage green | honey and cream | orange bubble sofa | blush and sage */
+  { wall: '#cfe9bf', wall2: '#f8e9b0', floor: '@wood|#f2b680', trim: '#ffffff', sofa: '#c5e8a4', acc: '#f4a98a', acc2: '#f7d36a', wood: '#f2b36e', curtain: '#fff6e0', kit: '#fbf3dc', top: '#f1d9a8', lamp: 'arc', focal: 'tv', sheet: '#fff8e8', rug: '#f59a86', round: 1, fl: 'daisy', flc: ['#ffffff', '#fff3d6', '#ffe3ef'] },
   { wall: '@damask|#eadbbd|#cfa56a', floor: '@wood|#b98550', trim: '#7a4a2a', sofa: '#2f5a3c', acc: '#f0a7b4', acc2: '#e2dc7a', wood: '#8a5a34', curtain: '#2c5a3a', kit: '#7d5a3a', top: '#d9c9a8', lamp: 'tri', focal: 'fire', sheet: '#efe6d2', rug: '@persian|#2f5a3c', vint: 1, chair: '#2f5a3c', fl: 'poppy', flc: ['#e8452f', '#ff7a45'] },
-  { wall: '#f3ebdd', floor: '@wood|#efcb90', trim: '#fffaf0', sofa: '#f6f0e4', acc: '#f2b45a', acc2: '#e0705a', wood: '#e9b868', curtain: '#ffffff', kit: '#f7efe0', top: '#e8b866', lamp: 'shade', focal: 'tv', sheet: '#fff8ea', rug: '@check|#fff6ea|#f2b27a', cloth: '@check|#c9505a|#f6ece0', fl: 'sun', flc: ['#f6bf2a'] },
-  { wall: '#cfdcc2', floor: '@wood|#e4bd8e', trim: '#ffffff', sofa: '#f0b99a', acc: '#f7e1a0', acc2: '#8fc29d', wood: '#d49b66', curtain: '#f7f0e2', kit: '#ece6d6', top: '#f6f2ea', lamp: 'arc', focal: 'tv', sheet: '#f4efe6', rug: '#f7e1a0', fl: 'tulip', flc: ['#f08aa8', '#f5c94a', '#fff3d6'] },
-  { wall: '#f0d4cf', floor: '@wood|#dcae86', trim: '#fff7f1', sofa: '#c98a88', acc: '#ecc57e', acc2: '#8fb4a2', wood: '#c48858', curtain: '#f6e8e2', kit: '#f6ece4', top: '#d8b7a0', lamp: 'shade', focal: 'tv', sheet: '#f8efe8', rug: '#e9c9c0', fl: 'iris', flc: ['#9a7fd8', '#c58ae0'] }
+  { wall: '#f6ead3', wall2: '#f3dcb4', floor: '@wood|#f3d08c', trim: '#fffaf0', sofa: '#f8f2e6', acc: '#f2a65a', acc2: '#e0705a', wood: '#efc27c', curtain: '#ffffff', kit: '#f8efdc', top: '#e8b866', lamp: 'shade', focal: 'tv', sheet: '#fff8ea', rug: '#f6c84a', round: 1, cloth: '@check|#c9505a|#f6ece0', fl: 'sun', flc: ['#f6bf2a'] },
+  { wall: '#e0ebcf', wall2: '#f7efe2', floor: '@wood|#b88a64', trim: '#ffffff', sofa: '#ee9a3c', acc: '#f2b27a', acc2: '#f6e7c8', wood: '#f1e4cc', curtain: '#ffffff', kit: '#fbf6ea', top: '#d9c2a0', lamp: 'arc', focal: 'tv', sheet: '#ffffff', rug: '@check|#fff4e6|#f2b27a', bubble: 1, fl: 'daisy', flc: ['#ffffff', '#fff3d6'] },
+  { wall: '#f8d5c8', wall2: '#d9ebcb', floor: '@wood|#e9b98c', trim: '#fff7f1', sofa: '#bfdcb4', acc: '#f4b8a0', acc2: '#f6dc8a', wood: '#e7b184', curtain: '#fff6ee', kit: '#faf0e6', top: '#e8c7a8', lamp: 'shade', focal: 'tv', sheet: '#fff3ec', rug: '#f7c0a8', round: 1, fl: 'iris', flc: ['#9a7fd8', '#c58ae0'] }
 ];
-const CT = [ /* cottages: calm minimal rooms, one soft colour each. The order matches the outside walls (COTW in build.js): rose, apricot, lemon, mint, sky, lilac, coral, cream */
-  { wall: '#f9e1e6', floor: '@wood|#ecd4b4', trim: '#ffffff', sofa: '#f7f1e8', acc: '#e58a9e', acc2: '#f2c978', wood: '#e4c29a', curtain: '#fffaf4', kit: '#f8f3ea', top: '#efe6d8', lamp: 'shade', focal: 'tv', sheet: '#fffaf2', rug: '#f3c4cd', fl: 'tulip', flc: ['#e5455a', '#f08aa8', '#fff3d6'] },
-  { wall: '#fbeccd', floor: '@wood|#e8cfa6', trim: '#ffffff', sofa: '#f6efe2', acc: '#e9a55a', acc2: '#8fc29d', wood: '#e2b886', curtain: '#fffaf4', kit: '#f8f3ea', top: '#efe6d8', lamp: 'shade', focal: 'fire', sheet: '#fffaf2', rug: '#f7dca0', fl: 'poppy', flc: ['#ff7a45', '#f5c94a'] },
-  { wall: '#faf5cc', floor: '@wood|#ecd8b0', trim: '#ffffff', sofa: '#f8f3e6', acc: '#f0c94a', acc2: '#9fd0a8', wood: '#e6c694', curtain: '#fffaf4', kit: '#f8f3ea', top: '#efe6d8', lamp: 'shade', focal: 'tv', sheet: '#fffaf2', rug: '#f2e49a', fl: 'sun', flc: ['#f6bf2a'] },
-  { wall: '#e1f2e0', floor: '@wood|#e6d3b0', trim: '#ffffff', sofa: '#f6f1e6', acc: '#7fc29a', acc2: '#f2b27a', wood: '#dfbf92', curtain: '#fffaf4', kit: '#f8f3ea', top: '#efe6d8', lamp: 'shade', focal: 'fire', sheet: '#fffaf2', rug: '#cfe9cf', fl: 'daisy', flc: ['#ffffff', '#fff6dc'] },
-  { wall: '#dcedf8', floor: '@wood|#e9d6b6', trim: '#ffffff', sofa: '#f5f1ea', acc: '#7fb4dc', acc2: '#f2c978', wood: '#e0c096', curtain: '#fffaf4', kit: '#f8f3ea', top: '#efe6d8', lamp: 'shade', focal: 'tv', sheet: '#fffaf2', rug: '#c6e0f2', fl: 'iris', flc: ['#7c9be6', '#9a7fd8'] },
-  { wall: '#ebe3f8', floor: '@wood|#e8d4b8', trim: '#ffffff', sofa: '#f6f1ea', acc: '#a58cdc', acc2: '#f2c0cf', wood: '#e2c4a0', curtain: '#fffaf4', kit: '#f8f3ea', top: '#efe6d8', lamp: 'shade', focal: 'fire', sheet: '#fffaf2', rug: '#dcd0f2', fl: 'iris', flc: ['#b79cf0', '#c58ae0'] },
-  { wall: '#fadccf', floor: '@wood|#ead0ae', trim: '#ffffff', sofa: '#f8f0e6', acc: '#ec8a6e', acc2: '#8fc29d', wood: '#e3bd90', curtain: '#fffaf4', kit: '#f8f3ea', top: '#efe6d8', lamp: 'shade', focal: 'tv', sheet: '#fffaf2', rug: '#f6c2ae', fl: 'poppy', flc: ['#e8452f', '#ff7a45', '#f7a8c0'] },
-  { wall: '#fff8ee', floor: '@wood|#ebd6b4', trim: '#ffffff', sofa: '#f2ebe0', acc: '#d9a15a', acc2: '#9fc99a', wood: '#e5c79e', curtain: '#fffaf4', kit: '#f8f3ea', top: '#efe6d8', lamp: 'shade', focal: 'fire', sheet: '#fffaf2', rug: '#f0e0c4', fl: 'daisy', flc: ['#ffffff', '#ffe3ef'] }
+/* cottages: one soft colour each. [wall, second wall, honey floor, sofa, round rug, accent, accent 2, flower, fireplace or tv] */
+const mkC = (wall, wall2, floor, sofa, rug, acc, acc2, fl, flc, focal) => ({ wall, wall2, floor: '@wood|' + floor, trim: '#ffffff', sofa, acc, acc2, wood: floor, curtain: '#fff8ee', kit: '#fbf4e4', top: '#f1dcb0', lamp: 'shade', focal, sheet: '#fff9ee', rug, round: 1, fl, flc });
+const CT = [
+  mkC('#f8d3da', '#fdeee6', '#efbf8e', '#f6efe2', '#f3a9b6', '#e58a9e', '#f6d27a', 'tulip', ['#e5455a', '#f08aa8', '#fff3d6'], 'tv'),
+  mkC('#fbd9b0', '#fff1d8', '#f0c08a', '#c6e3a8', '#f6b57a', '#ef9a5a', '#8fc29d', 'poppy', ['#ff7a45', '#f5c94a'], 'fire'),
+  mkC('#f8ecb0', '#fff8da', '#f1cf92', '#cfe8c0', '#f6d66a', '#f0c94a', '#f2a27a', 'sun', ['#f6bf2a'], 'tv'),
+  mkC('#cfeccf', '#f3f8e4', '#efc79a', '#fdf3dc', '#9fd6ae', '#6fc29a', '#f4a98a', 'daisy', ['#ffffff', '#fff6dc'], 'fire'),
+  mkC('#cde6f6', '#f6f3e6', '#efcf9e', '#f7e6c2', '#9cc9ea', '#6fa8d8', '#f6cb70', 'iris', ['#7c9be6', '#9a7fd8'], 'tv'),
+  mkC('#e0d6f5', '#fbf0f0', '#edcba4', '#f9e4e4', '#c7b3ee', '#a58cdc', '#f2c0cf', 'iris', ['#b79cf0', '#c58ae0'], 'fire'),
+  mkC('#f9cbbd', '#fff0e4', '#efc496', '#cfe6c0', '#f2a592', '#ec7a62', '#9fc99a', 'poppy', ['#e8452f', '#ff7a45', '#f7a8c0'], 'tv'),
+  mkC('#fbf0da', '#e6f0d8', '#f0cf9a', '#f1b59a', '#f4d898', '#d9a15a', '#9fc99a', 'daisy', ['#ffffff', '#ffe3ef'], 'fire')
 ];
 const PT = [ /* penthouses */
-  { fl: 'tulip', flc: ['#f08aa8', '#fff3d6', '#f5c94a'], wall: '#e3f1c9', floor: '@wood|#f0b878', trim: '#ffffff', sofa: '#f3e8c3', sofa2: '#a9dd9a', acc: '#f2a27a', acc2: '#f6c25b', wood: '#e8a25c', curtain: '#ffffff', kit: '#f4efe0', top: '#d9c9a8', lamp: 'arc', sheet: '#fbf6e8', rug: '#f4967d' },
-  { fl: 'sun', flc: ['#f6bf2a'], wall: '#f8f3ea', floor: '@wood|#9b6b4a', trim: '#ffffff', sofa: '#e89a3e', acc: '#f2b27a', acc2: '#f8e7c8', wood: '#e9dcc4', curtain: '#ffffff', kit: '#ffffff', top: '#b9a58a', lamp: 'arc', sheet: '#ffffff', rug: '@check|#f8e7c8|#f2b27a', bubble: 1 }
+  { fl: 'tulip', flc: ['#f08aa8', '#fff3d6', '#f5c94a'], wall: '#d9efc4', wall2: '#fbeeb8', floor: '@wood|#f0b878', trim: '#ffffff', sofa: '#f3e8c3', sofa2: '#a9dd9a', acc: '#f2a27a', acc2: '#f6c25b', wood: '#e8a25c', curtain: '#ffffff', kit: '#f4efe0', top: '#d9c9a8', lamp: 'arc', sheet: '#fbf6e8', rug: '#f4967d' },
+  { fl: 'sun', flc: ['#f6bf2a'], wall: '#e3ecd3', wall2: '#f6ecdc', floor: '@wood|#9b6b4a', trim: '#ffffff', sofa: '#e89a3e', acc: '#f2b27a', acc2: '#f8e7c8', wood: '#e9dcc4', curtain: '#ffffff', kit: '#ffffff', top: '#b9a58a', lamp: 'arc', sheet: '#ffffff', rug: '@check|#f8e7c8|#f2b27a', bubble: 1 }
 ];
 
 /* ---------- walls ---------- */
@@ -127,17 +130,28 @@ function curtains(g, o, D) {
     rod(g, w.x, y1 + .32, z + .14, .03, w.w + 1.1, '#c9a24a', 'x');
   }
 }
+/* tiny warm bulbs on a wire along the top of the back wall */
+function stringLights(g, W, D, Hh) {
+  const n = Math.round(W * 1.7), y0 = Hh - .16;
+  for (let i = 0; i <= n; i++) { const u = i / n; sph(g, -W / 2 + .35 + u * (W - .7), y0 - Math.abs(Math.sin(u * PI * 3)) * .13, -D / 2 + .2, .034, 'glow'); }
+}
+/* a little hanging plant from the ceiling, up in the corner (always high above the camera path) */
+function hangPlant(g, x, z, Hh, len) {
+  rod(g, x, Hh - len / 2, z, .008, len, '#8a7a60'); put(g, G.bkt, '#f1e7d6', x, Hh - len, z, .14, .16, .14); sph(g, x, Hh - len + .14, z, .17, '#5fae52', .8);
+  for (let i = 0; i < 5; i++) sph(g, x + Math.cos(i * 1.3) * .12, Hh - len - .1 - i * .07, z + Math.sin(i * 1.3) * .12, .05, i % 2 ? '#4f9a4a' : '#6dbb5c');
+}
 function shell(R, o) {
-  const { g, cap, W, D, Hh } = R, th = o.th;
-  box(g, 0, -.3, 0, W, .3, D, '#d8d0c2'); box(g, 0, 0, 0, W - .3, .02, D - .3, th.floor);
-  wallZ(g, -W / 2 + .09, -D / 2, D / 2, [], Hh, o.wall); wallZ(g, W / 2 - .09, -D / 2, D / 2, [], Hh, o.wall);
+  const { g, cap, W, D, Hh } = R, th = o.th, w2 = th.wall2 || o.wall; /* the right wall and the entrance wall get the second colour, like the pictures */
+  box(g, 0, -.3, 0, W, .3, D, '#f2ebdd'); box(g, 0, 0, 0, W - .3, .02, D - .3, th.floor);
+  wallZ(g, -W / 2 + .09, -D / 2, D / 2, [], Hh, o.wall); wallZ(g, W / 2 - .09, -D / 2, D / 2, [], Hh, w2);
   backWall(g, W, D, Hh, o.wins, o.wall, o.trim);
-  wallX(cap, D / 2 - .09, -W / 2, W / 2, [o.door], Hh, o.wall);
-  box(cap, 0, Hh, 0, W + .4, .25, D + .4, '#faf6ee');
+  wallX(cap, D / 2 - .09, -W / 2, W / 2, [o.door], Hh, w2);
+  box(cap, 0, Hh, 0, W + .4, .25, D + .4, '#fffaf2');
   /* skirting boards and a picture rail */
   box(g, -W / 2 + .2, 0, 0, .04, .16, D - .3, o.trim); box(g, W / 2 - .2, 0, 0, .04, .16, D - .3, o.trim);
   if (th.vint) { box(g, -W / 2 + .2, .16, 0, .04, .9, D - .3, th.wood); box(g, W / 2 - .2, .16, 0, .04, .9, D - .3, th.wood); box(g, -W / 2 + .19, 1.06, 0, .07, .06, D - .3, th.trim); box(g, W / 2 - .19, 1.06, 0, .07, .06, D - .3, th.trim); }
   curtains(g, o, D);
+  if (!o.noCur && !o.ph) { stringLights(g, W, D, Hh); hangPlant(g, -W / 2 + .75, -D / 2 + .75, Hh, 1.0); hangPlant(g, W / 2 - .75, -D / 2 + .75, Hh, .8); }
   /* balcony outside the big windows (the real village shows beyond it) */
   box(g, 0, -.3, -D / 2 - 1.2, W - .2, .3, 2.4, '#cdc4b2');
   box(g, 0, 0, -D / 2 - 2.35, W - .2, 1.0, .04, 'glass'); box(g, 0, 1.0, -D / 2 - 2.35, W - .2, .06, .1, '#f2f2f2');
@@ -146,27 +160,48 @@ function shell(R, o) {
 }
 function pendant(c, x, z, Hh, th) { rod(c, x, Hh - .45, z, .012, .9, '#333333'); if (th && th.vint) put(c, G.cone, 'glow', x, Hh - .95, z, .38, .3, .38).rotation.x = PI; else sph(c, x, Hh - .95, z, .24, 'glow'); }
 
+/* ---------- small cute things ---------- */
+function mug(g, x, y, z, c) { cyl(g, x, y, z, .055, .1, c || '#ffffff'); rod(g, x + .07, y + .05, z, .022, .05, c || '#ffffff', 'z'); }
+function books(g, x, y, z, cols) { cols.forEach((c, i) => box(g, x + (i % 2) * .02, y + i * .05, z, .3 - i * .02, .05, .22, c)); }
+function bear(g, x, y, z, c) { sph(g, x, y + .1, z, .1, c, 1.1); sph(g, x, y + .25, z, .075, c); sph(g, x - .06, y + .31, z, .03, c); sph(g, x + .06, y + .31, z, .03, c); sph(g, x, y + .23, z + .07, .018, '#3a2a22'); }
+function cat(g, x, z, ry, c) { const s = sub(g, x, z, ry); sph(s, 0, .13, 0, .2, c, .6); sph(s, 0, .2, .2, .11, c, .9); for (const a of [-1, 1]) sph(s, a * .07, .31, .19, .04, c, 1.5); sph(s, 0, .1, -.26, .06, c, 1); return s; }
+function wallShelf(g, x, y, z, ry, w, th) { /* a floating shelf with two little plants and a stack of books, like the first picture */
+  const s = sub(g, x, z, ry); box(s, 0, y, 0, w, .05, .26, th.wood);
+  potF(s, -w * .3, y + .05, 0, 'daisy', ['#ffffff', '#fff6dc'], .55); books(s, 0, y + .05, 0, [th.acc, th.acc2, '#ffffff']); potF(s, w * .3, y + .05, 0, th.fl, th.flc, .55);
+}
+
 /* ---------- furniture (every piece faces +z; the back or head is at -z) ---------- */
 function bed(g, x, z, ry, th, w, alt) {
   w = w || 1.8; const s = sub(g, x, z, ry), duv = alt ? th.acc2 : th.acc, run = alt ? th.acc : th.acc2;
   box(s, 0, 0, 0, w, .3, 2.1, th.wood); box(s, 0, .3, .02, w - .1, .26, 2.0, th.sheet); box(s, 0, .56, .3, w - .06, .1, 1.45, duv); box(s, 0, .6, .75, w - .06, .07, .5, run);
-  for (const a of [-1, 1]) { const p = box(s, a * w * .25, .56, -.78, w * .4, .17, .42, '#ffffff'); p.rotation.x = -.12; }
+  for (const a of [-1, 1]) { const p = put(s, G.sph, '#ffffff', a * w * .25, .68, -.78, .3, .13, .2); p.rotation.x = -.12; }
   box(s, 0, .3, -1.08, w + .1, 1.0, .12, th.wood); box(s, 0, .55, -1.0, w - .1, .6, .04, th.sheet);
   for (const a of [-1, 1]) { box(s, a * (w / 2 + .35), 0, -.8, .45, .5, .45, th.wood); cyl(s, a * (w / 2 + .35), .5, -.8, .09, .26, 'glow'); }
   box(s, 0, 0, 1.1, w - .1, .22, .12, th.wood);
+  bear(s, w * .2, .66, .15, '#f6e6cc');
 }
-function sofa(g, x, z, ry, th, len, c) {
+function sofa(g, x, z, ry, th, len, c) { /* rounded arms and a rounded back roll, a throw blanket and soft pillows */
   len = len || 2.4; c = c || th.sofa; const s = sub(g, x, z, ry);
   box(s, 0, .12, 0, len, .33, .95, c); box(s, 0, .45, -.38, len, .62, .22, c);
-  box(s, -len / 2 + .11, .45, .05, .22, .34, .85, c); box(s, len / 2 - .11, .45, .05, .22, .34, .85, c);
+  rod(s, 0, 1.03, -.38, .13, len - .02, c, 'x');
+  for (const a of [-1, 1]) rod(s, a * (len / 2 - .11), .62, .05, .17, .86, c, 'z');
   const n = Math.max(2, Math.round(len / 1.1)), cw = (len - .5) / n;
   for (let i = 0; i < n; i++) box(s, -len / 2 + .25 + cw * (i + .5), .45, .12, cw - .04, .14, .68, c);
   for (const a of [-1, 1]) for (const b of [-1, 1]) box(s, a * (len / 2 - .12), 0, b * .35, .08, .12, .08, '#5a4030');
-  const p1 = box(s, -len / 2 + .5, .6, .0, .38, .38, .12, th.acc); p1.rotation.x = -.25; p1.rotation.z = .12;
-  const p2 = box(s, len / 2 - .5, .6, .0, .38, .38, .12, th.acc2); p2.rotation.x = -.25; p2.rotation.z = -.12;
+  const p1 = put(s, G.sph, th.acc, -len / 2 + .5, .72, .0, .22, .22, .09); p1.rotation.x = -.25; p1.rotation.z = .12;
+  const p2 = put(s, G.sph, th.acc2, len / 2 - .5, .72, .0, .22, .22, .09); p2.rotation.x = -.25; p2.rotation.z = -.12;
+  box(s, -len * .1, .6, .08, .7, .035, .6, th.acc2); box(s, -len * .1 + .38, .5, .12, .05, .12, .6, th.acc2);
   if (th.vint) for (let i = 0; i < 6; i++) sph(s, -len / 2 + .5 + i * (len - 1) / 5, .86, -.27, .035, '#3a2a1c');
   return s;
 }
+function bubbleSofa(g, x, z, ry, len, c) { /* the orange bubble sofa from the picture */
+  const s = sub(g, x, z, ry), oc = [c, shd(c, 1.08), shd(c, .93)], n = Math.max(3, Math.round(len / .62));
+  for (let i = 0; i < n; i++) { const u = -len / 2 + .3 + i * (len - .6) / (n - 1); sph(s, u, .42, 0, .44, oc[i % 3], .9); sph(s, u + .14, .98, -.2, .42, oc[(i + 1) % 3], .85); }
+  for (let i = 0; i < n - 1; i++) sph(s, -len / 2 + .55 + i * (len - 1.1) / (n - 2), .34, .5, .36, oc[(i + 2) % 3], .85);
+  box(s, len * .22, .72, .42, 1.0, .06, .6, '#fff8ee');
+  return s;
+}
+function livingSofa(g, x, z, ry, th, len) { return th.bubble ? bubbleSofa(g, x, z, ry, len, th.sofa) : sofa(g, x, z, ry, th, len); }
 function armchair(g, x, z, ry, c, wing) {
   const s = sub(g, x, z, ry); box(s, 0, .15, 0, .9, .3, .85, c); box(s, 0, .3, -.35, .9, .9, .2, c);
   box(s, -.4, .3, .05, .16, .3, .8, c); box(s, .4, .3, .05, .16, .3, .8, c); box(s, 0, .45, .08, .62, .12, .6, c);
@@ -175,9 +210,9 @@ function armchair(g, x, z, ry, c, wing) {
   return s;
 }
 function coffee(g, x, z, th) {
-  if (th.vint || th.round) { cyl(g, x, 0, z, .07, .4, th.wood); cyl(g, x, .4, z, .55, .05, th.wood); vaseF(g, x + .12, .45, z - .05, th.fl, th.flc); return; }
+  if (th.vint || th.round) { cyl(g, x, 0, z, .07, .4, th.wood); cyl(g, x, .4, z, .55, .05, th.wood); vaseF(g, x + .14, .45, z - .05, th.fl, th.flc); mug(g, x - .22, .45, z + .1, '#ffffff'); books(g, x - .1, .45, z - .25, [th.acc, th.acc2]); return; }
   box(g, x, .38, z, 1.2, .06, .7, th.wood); for (const a of [-.5, .5]) for (const b of [-.28, .28]) box(g, x + a, 0, z + b, .06, .38, .06, '#6b4a30');
-  box(g, x - .2, .44, z, .35, .04, .25, th.acc); vaseF(g, x + .3, .44, z, th.fl, th.flc);
+  box(g, x - .2, .44, z, .35, .04, .25, th.acc); vaseF(g, x + .3, .44, z, th.fl, th.flc); books(g, x - .45, .44, z + .12, [th.acc2, '#ffffff']); mug(g, x - .05, .44, z - .15, '#ffffff');
 }
 function rug(g, x, z, w, d, th) {
   if (th.rug[0] === '@') { const m = box(g, x, .02, z, w, .015, d, th.rug); return m; }
@@ -188,6 +223,7 @@ function tvUnit(g, x, z, ry, w, th) {
   const s = sub(g, x, z, ry); box(s, 0, .16, 0, w, .5, .5, th.wood); box(s, 0, 0, 0, w - .1, .16, .42, th.trim);
   box(s, 0, .95, -.2, w * .85, .62, .06, '#14181d'); box(s, 0, .98, -.165, w * .85 - .1, .54, .01, '#1b3a52');
   cyl(s, w * .36, .66, 0, .06, .26, '#fff3d0'); cyl(s, w * .36 + .16, .66, 0, .05, .2, '#fff3d0'); box(s, -w * .3, .66, 0, .3, .14, .2, th.acc);
+  potF(s, -w * .05, .66, .05, 'daisy', ['#ffffff', '#fff6dc'], .5);
 }
 function fireplace(g, x, z, ry, w, th, Hh) {
   const s = sub(g, x, z, ry); box(s, 0, 0, -.05, w, 1.25, .5, th.wood); box(s, 0, 1.25, -.02, w + .3, .08, .6, th.wood);
@@ -213,8 +249,20 @@ function plant(g, x, z, k, big) {
   if (big) { for (let i = 0; i < 6; i++) { const m = sph(g, x + Math.cos(i * 1.05) * .35 * k, .95 * k + (i % 2) * .3 * k, z + Math.sin(i * 1.05) * .35 * k, .34 * k, gr[i % 3], .16); m.rotation.z = Math.cos(i * 1.05) * .6; m.rotation.x = Math.sin(i * 1.05) * .6; } cyl(g, x, .35 * k, z, .03, .7 * k, '#3f6a3a'); return; }
   sph(g, x, .75 * k, z, .38 * k, gr[0]); sph(g, x + .15 * k, 1.0 * k, z, .26 * k, gr[1]); sph(g, x - .15 * k, .95 * k, z + .1 * k, .24 * k, gr[2]);
 }
-function wardrobe(g, x, z, ry, w, th) { const s = sub(g, x, z, ry); w = w || 1.8; box(s, 0, 0, 0, w, 2.3, .6, th.wood); box(s, 0, 0, .31, .03, 2.3, .02, th.trim); box(s, -.12, 1.0, .32, .05, .3, .03, '#e6c07a'); box(s, .12, 1.0, .32, .05, .3, .03, '#e6c07a'); }
-function desk(g, x, z, ry, th) { const s = sub(g, x, z, ry); box(s, 0, .72, 0, 1.4, .05, .65, th.wood); box(s, -.65, 0, 0, .06, .72, .6, th.wood); box(s, .65, 0, 0, .06, .72, .6, th.wood); box(s, 0, .77, -.15, .55, .35, .04, '#15181c'); box(s, 0, 0, .6, .45, .45, .45, th.acc); cyl(s, .5, .77, .1, .05, .18, 'glow'); }
+/* a LOW cute dresser (drawers, a lamp, a little plant and a frame on top). It is NOT a tall closet, so it never blocks the view. */
+function wardrobe(g, x, z, ry, w, th) {
+  const s = sub(g, x, z, ry); w = w || 1.6;
+  for (const a of [-1, 1]) for (const b of [-1, 1]) box(s, a * (w / 2 - .1), 0, b * .18, .07, .14, .07, th.wood);
+  box(s, 0, .14, 0, w, .82, .5, th.wood); box(s, 0, .96, 0, w + .06, .05, .54, th.top || th.wood);
+  for (let c = 0; c < 2; c++) for (let r = 0; r < 2; r++) { box(s, (c - .5) * (w / 2), .2 + r * .38, .26, w / 2 - .08, .32, .02, shd(th.wood, r ? 1.07 : .95)); sph(s, (c - .5) * (w / 2), .36 + r * .38, .29, .028, '#e6c07a'); }
+  cyl(s, -w * .32, 1.01, 0, .05, .1, '#ffffff'); sph(s, -w * .32, 1.22, 0, .1, 'glow', .85);
+  potF(s, w * .3, 1.01, 0, th.fl || 'daisy', th.flc || FLC, .7);
+  box(s, 0, 1.01, -.16, .3, .34, .03, '#7a5230'); box(s, 0, 1.04, -.14, .24, .28, .01, th.acc);
+}
+function desk(g, x, z, ry, th) {
+  const s = sub(g, x, z, ry); box(s, 0, .72, 0, 1.4, .05, .65, th.wood); box(s, -.65, 0, 0, .06, .72, .6, th.wood); box(s, .65, 0, 0, .06, .72, .6, th.wood); box(s, 0, .77, -.15, .55, .35, .04, '#15181c'); box(s, 0, 0, .6, .45, .45, .45, th.acc); cyl(s, .5, .77, .1, .05, .18, 'glow');
+  mug(s, -.45, .77, .1, th.acc2); books(s, -.5, .77, -.18, [th.acc, '#ffffff']);
+}
 function shelf(g, x, z, ry, w, cols, wood) {
   const s = sub(g, x, z, ry); w = w || 2; wood = wood || '#e7dccb'; box(s, 0, 0, 0, w, 2, .4, wood);
   for (let r = 0; r < 4; r++) { box(s, 0, .45 + r * .5, .02, w - .1, .04, .38, wood); for (let i = 0; i < Math.floor(w / .3); i++) box(s, -w / 2 + .25 + i * .3, .5 + r * .5, .08, .18, .3 + (i % 3) * .05, .2, cols[(i + r) % cols.length]); }
@@ -223,6 +271,8 @@ function kitchen(g, x, z, ry, len, fridge, th) {
   const s = sub(g, x, z, ry); box(s, 0, 0, 0, len, .9, .65, th.kit); box(s, 0, .9, 0, len, .05, .72, th.top); box(s, 0, 1.55, -.18, len, .75, .35, th.kit);
   box(s, -len * .2, .95, .05, .6, .03, .4, '#aab4ba'); box(s, len * .22, .95, .05, .6, .02, .5, '#22262a');
   cyl(s, -len * .38, .95, .0, .1, .22, '#7fb3d5'); vaseF(s, len * .36, .95, .05, th.fl, th.flc, .9);
+  cyl(s, len * .06, .95, .05, .13, .07, '#ffffff'); sph(s, len * .06 - .05, 1.07, .05, .05, '#e0453a'); sph(s, len * .06 + .06, 1.07, .08, .05, '#f5c431');
+  mug(s, len * .06 + .45, .95, -.05, th.acc); box(s, 0, 1.0, -.22, .6, .02, .02, '#e6c07a');
   for (let i = 0; i < Math.floor(len / .6); i++) box(s, -len / 2 + .3 + i * .6, .42, .335, .05, .05, .02, '#e6c07a');
   if (fridge) box(s, len / 2 + .45, 0, -.05, .8, 1.9, .7, '#e8ecee');
 }
@@ -330,9 +380,10 @@ function studio(R, o) {
   bath(g, 3.65, 2.4, 0);
   bed(g, -3.2, -2.3, 0, th, 1.8); wardrobe(g, -4.2, 1.4, PI / 2, 1.8, th); focal(g, o, -4.15, -.4, PI / 2, 1.3, Hh);
   kitchen(g, 4.05, -1.7, -PI / 2, 3.2, true, th);
-  sofa(g, -1.1, 1.3, PI, th, 2.4); coffee(g, -1.1, -.1, th); rug(g, -1.1, .1, 2.8, 2.2, th);
+  livingSofa(g, -1.1, 1.3, PI, th, 2.4); coffee(g, -1.1, -.1, th); rug(g, -1.1, .1, 2.8, 2.2, th); cat(g, -.15, -.35, .6, th.acc);
   if (th.vint) tea(g, 1.6, .6, th); else dining(g, 1.9, .8, 0, 2, th);
   plant(g, -4.0, 3.0, 1, 1); lampF(g, -2.6, 2.3, th); if (th.focal === 'tv') gallery(g, -4.33, 2.3, -.4, PI / 2); else art(g, -4.33, 1.7, -.4, PI / 2, 1.0, .7, th.acc, th.acc2);
+  wallShelf(g, -4.33, 1.55, 1.4, PI / 2, 1.3, th);
   pouf(g, -2.4, .2, th.sofa); potF(g, -3.2, 0, 2.9, th.fl, th.flc, 1.1);
   if (th.vint) { sconce(g, -4.3, 1.9, .55, PI / 2); gramophone(g, 0.7, 2.9, 0, th); }
   R.cams = [cam(.2, 3.0, 0, -4.5), cam(-1.0, -1.4, 4.5, -.6)];
@@ -341,9 +392,10 @@ function oneBR(R, o) {
   const { g, Hh } = R, th = o.th; shell(R, o);
   wallZ(g, 1.8, -4, 4, [-1.0, 2.6], Hh, o.wall); wallX(g, 1.0, 1.8, 5.5, [], Hh, o.wall);
   bed(g, 3.9, -2.4, 0, th, 2.0, 1); wardrobe(g, 5.15, -.1, -PI / 2, 1.6, th); rug(g, 3.9, -1.2, 2.6, 2.2, { rug: th.acc2 });
+  wallShelf(g, 5.2, 1.55, -.1, -PI / 2, 1.3, th);
   bath(g, 4.6, 2.5, 0);
   kitchen(g, -5.1, -.6, PI / 2, 3.4, true, th);
-  sofa(g, -1.4, .2, PI, th, 2.6); coffee(g, -1.4, -1.4, th); rug(g, -1.4, -.8, 3.2, 2.8, th);
+  livingSofa(g, -1.4, .2, PI, th, 2.6); coffee(g, -1.4, -1.4, th); rug(g, -1.4, -.8, 3.2, 2.8, th); cat(g, -.15, -1.3, .5, th.acc);
   if (th.vint) { tea(g, -3.3, 2.7, th); gramophone(g, 1.45, -3.7, -PI / 2, th); } else dining(g, -3.2, 2.7, 0, 4, th);
   focal(g, o, 1.44, -2.55, -PI / 2, 1.6, Hh);
   plant(g, -4.9, -3.2, 1, 1); plant(g, .9, -3.3, .9); desk(g, 0.2, 3.2, PI, th); lampF(g, -3.2, .9, th);
@@ -357,11 +409,12 @@ function twoBR(R, o) {
   wallZ(g, .8, -4.5, 4.5, [-2.0, 2.2], Hh, o.wall); wallX(g, 0, .8, 6.5, [], Hh, o.wall);
   wallZ(g, -3.8, 1.8, 4.5, [3.2], Hh, o.wall); wallX(g, 1.8, -6.5, -3.8, [], Hh, o.wall);
   bed(g, 4.3, -2.5, 0, th, 2.0); wardrobe(g, 6.0, -.6, -PI / 2, 1.6, th); rug(g, 4.3, -1.3, 2.8, 2.4, { rug: th.acc2 });
+  wallShelf(g, 6.12, 1.55, -.6, -PI / 2, 1.3, th);
   bed(g, 5.1, 2.3, -PI / 2, th, 1.5, 1); desk(g, 2.4, 3.9, PI, th); wardrobe(g, 2.2, .45, 0, 1.4, th);
   bath(g, -5.1, 3.1, 0);
   kitchen(g, -6.05, -1.6, PI / 2, 3.2, true, th);
-  sofa(g, -3.0, .4, PI, th, 2.8); coffee(g, -3.0, -1.2, th); rug(g, -3.0, -.6, 3.6, 3.0, th);
-  if (th.vint) { tea(g, -1.6, 3.2, th); } else dining(g, -1.8, 3.5, 0, 4, th);
+  livingSofa(g, -3.0, .4, PI, th, 2.8); coffee(g, -3.0, -1.2, th); rug(g, -3.0, -.6, 3.6, 3.0, th); cat(g, -1.4, -1.0, .6, th.acc);
+  if (th.vint) { tea(g, -1.6, 3.2, th); } else dining(g, -.1, 3.5, 0, 4, th); /* the table used to stand right in the doorway: it is moved away from the door now */
   focal(g, o, .55, -3.6, -PI / 2, 1.5, Hh);
   plant(g, -.6, -3.6, 1, 1); plant(g, -6.0, 1.4, .9); lampF(g, -4.9, .6, th);
   art(g, .72, 1.6, -.3, -PI / 2 + PI, .8, .6, th.acc, th.acc2);
@@ -370,7 +423,7 @@ function twoBR(R, o) {
   R.cams = [cam(-2.2, 3.6, -3.0, -4.5), cam(2.0, -.9, 4.3, -2.7)];
 }
 
-/* ---------- penthouses: 0 = mint and butter, 1 = white with the orange bubble sofa ---------- */
+/* ---------- penthouses: 0 = mint and butter, 1 = sage with the orange bubble sofa ---------- */
 function penthouse(R, o) {
   const { g, W, D, Hh } = R, n = o.beds, cl = -W / 2 + 7, cr = W / 2 - 7, hz = D / 2, th = o.th;
   shell(R, o);
@@ -397,12 +450,13 @@ function penthouse(R, o) {
     box(bs, .9, .62, .5, 1.1, .1, .8, '#ffffff');
     box(g, 0, .38, -2.9, 1.4, .05, .8, 'glass'); box(g, 0, .36, -2.9, 1.4, .02, .8, '#d9ecef'); cyl(g, .3, .43, -2.9, .04, .22, '#ffffff'); sph(g, .3, .7, -2.9, .18, '#ffffff', .55);
     cyl(g, -1.3, 0, -1.6, .35, .4, '#ffffff'); plant(g, -3.3, -5.6, 1.3, 1);
-    box(g, -3.55, 0, -1.2, .4, 2.2, 1.4, '#ffffff'); box(g, -3.5, .4, -1.2, .3, .08, 1.2, '#e9dcc4'); box(g, -3.5, 1.2, -1.2, .3, .08, 1.2, '#e9dcc4'); cyl(g, -3.5, .48, -1.4, .07, .3, '#2b2b2b'); sph(g, -3.5, 1.45, -1.0, .16, '#8fbf7a');
+    box(g, -3.55, 0, -1.2, .4, 1.4, 1.4, '#ffffff'); box(g, -3.5, .4, -1.2, .3, .08, 1.2, '#e9dcc4'); box(g, -3.5, 1.0, -1.2, .3, .08, 1.2, '#e9dcc4'); cyl(g, -3.5, .48, -1.4, .07, .3, '#2b2b2b'); sph(g, -3.5, 1.25, -1.0, .16, '#8fbf7a');
+    cat(g, 1.4, -2.0, .5, '#ffffff');
   } else { /* mint and butter: cream and mint sofas facing each other over a round peach rug */
     rug(g, 0, -2.6, 4.2, 4.2, { rug: th.rug, round: 1 });
     sofa(g, 0, -.4, PI, th, 3.2, th.sofa); sofa(g, 0, -4.8, 0, th, 3.0, th.sofa2);
     box(g, 0, .36, -2.6, 1.5, .08, .8, th.acc2); box(g, -.6, 0, -2.6, .08, .36, .7, th.acc2); box(g, .6, 0, -2.6, .08, .36, .7, th.acc2); cyl(g, 0, .44, -2.6, .1, .22, '#fff7e0'); sph(g, 0, .75, -2.6, .13, '#f28ab0');
-    plant(g, 3.2, -5.8, 1.3, 1); plant(g, -3.2, -5.8, 1.1, 1);
+    plant(g, 3.2, -5.8, 1.3, 1); plant(g, -3.2, -5.8, 1.1, 1); cat(g, 1.4, -2.0, .5, th.acc);
   }
   kitchen(g, cl + .45, 4.0, PI / 2, 4.2, true, th); island(g, cl + 2.8, 3.8, PI / 2, 2.4, th);
   dining(g, 0.4, 4.9, 0, 4, th); lampF(g, 2.6, 0.6, th);

@@ -2,7 +2,7 @@
 export const KINDS = ['Bakery', 'Nail salon', 'Hair salon', 'Cafe', 'Flower shop', 'Barber'];
 export const PH_PRICES = Array.from({ length: 10 }, (_, i) => 150000 + i * 10000);
 export const SHOP_PRICE = 50000;
-export const COT_PRICES = Array.from({ length: 40 }, (_, i) => 30000 + ((i * 37) % 41) * 1000); /* 30,000 to 70,000 IRT */
+export const COT_PRICES = Array.from({ length: 60 }, (_, i) => 30000 + ((i * 37) % 41) * 1000); /* 30,000 to 70,000 IRT */
 export const IG_DM = ''; /* Paste your Instagram DM link here when buying goes live */
 export const fmt = n => n.toLocaleString('en-US') + ' IRT'; /* real prices (Toman) */
 export const coins = n => Math.round(n).toLocaleString('en-US'); /* in-game Nest coins */
@@ -37,7 +37,7 @@ export function ensure(r) {
 const KEY = 'nv4';
 let CUR = null;
 export function load() {
-  let S = { houses: [], ph: Array(10).fill(null), shops: Array(6).fill(null), cot: Array(40).fill(null) };
+  let S = { houses: [], ph: Array(10).fill(null), shops: Array(6).fill(null), cot: Array(60).fill(null) };
   try {
     const x = JSON.parse(localStorage.getItem(KEY) || 'null');
     if (x && x.houses) S = Object.assign(S, x);
@@ -55,7 +55,7 @@ export function load() {
   S.houses = (S.houses || []).filter(r => r && r.u && r.code !== 'DEMO');
   S.houses.forEach(ensure);
   /* ownership comes only from the OWNERS list above */
-  S.ph = Array(10).fill(null); S.shops = Array(6).fill(null); S.cot = Array(40).fill(null);
+  S.ph = Array(10).fill(null); S.shops = Array(6).fill(null); S.cot = Array(60).fill(null);
   for (const k of ['ph', 'cot', 'shops']) for (const [i, u] of Object.entries(OWNERS[k] || {})) S[k][+i] = { u };
   if (S.me && !S.houses.some(r => r.u === S.me)) delete S.me;
   CUR = S; save(S);

@@ -355,20 +355,24 @@ export function layout() {
     for (const zq of [d.zc - 32, d.zc + 32]) line(d.cx - OSTREET, zq, d.cx + OSTREET, zq, 3);
   }
 
-  /* lakeview cottages: 4 terraced rows on the north shore slope, all facing the lake */
-  const CROW = [-198, -216, -234, -252];
-  for (let r = 0; r < 4; r++) for (let k = 0; k < 10; k++) {
-    const x = (k - 4.5) * 19 + (r % 2 ? 4.5 : -4.5), z = CROW[r] + Math.sin(k * 1.7 + r) * 1.4, h = (baseH(x, z) + baseH(x, z + 11)) / 2; /* cut into the hillside: halfway between the back and the front slope, so the stairs below stay gentle */
-    addPad(x, z, 7, h, 13);
-    L.cot.push({ i: L.cot.length, x, z, y: h, yaw: (((k * 7 + r * 3) % 5) - 2) * .03, name: 'Cottage ' + (L.cot.length + 1), k: 'cot', w: 7, d: 6, hgt: 9 });
+  /* lakeview cottages: 6 terraced rows of 10 on the north shore slope, all facing the lake.
+     Rows 0-3 are the original ones. Rows 4 and 5 (cottages 41 to 60) sit further back up the slope with more room: every second one has a BIG garden
+     (c.big = true, drawn by build.js). Their x positions put each house between two of the N-S sidewalks in L.walk.conn, so no path cuts through a garden. */
+  const CROW = [-198, -216, -234, -252, -274, -302];
+  const CX2 = [-87, -66.5, -47.5, -28.5, -9.5, 9.5, 28.5, 47.5, 66.5, 87];
+  for (let r = 0; r < 6; r++) for (let k = 0; k < 10; k++) {
+    const x = r < 4 ? (k - 4.5) * 19 + (r % 2 ? 4.5 : -4.5) : CX2[k], z = CROW[r] + Math.sin(k * 1.7 + r) * 1.4, h = (baseH(x, z) + baseH(x, z + 11)) / 2; /* cut into the hillside: halfway between the back and the front slope, so the stairs below stay gentle */
+    const big = r >= 4 && (k + r) % 2 === 0;
+    addPad(x, z, big ? 11 : 7, h, big ? 8 : 13);
+    L.cot.push({ i: L.cot.length, x, z, y: h, yaw: (((k * 7 + r * 3) % 5) - 2) * .03, name: 'Cottage ' + (L.cot.length + 1), k: 'cot', w: 7, d: 6, hgt: 9, big });
   }
   /* sidewalks in front of each cottage row: level the ground under them. each row's path height is the natural
      ground height smoothed along the row, so it rises and falls gently instead of following every bump */
   const walkZ = [];
-  for (let r = 0; r < 4; r++) { let s = 0; for (let k = 0; k < 10; k++) s += L.cot[r * 10 + k].z; walkZ.push(s / 10 + 11); }
+  for (let r = 0; r < 6; r++) { let s = 0; for (let k = 0; k < 10; k++) s += L.cot[r * 10 + k].z; walkZ.push(s / 10 + 11); }
   L.walk = { z: walkZ, prom: walkZ[0] + 3.8, x0: -98, x1: 98, conn: [-76, -38, 0, 38, 76] }; /* conn: N-S sidewalks, each exactly between two cottages of neighbouring rows */
   const wp = [];
-  for (let r = 0; r < 4; r++) for (let x = L.walk.x0; x <= L.walk.x1; x += 2.4) {
+  for (let r = 0; r < 6; r++) for (let x = L.walk.x0; x <= L.walk.x1; x += 2.4) {
     let s = 0, n = 0; for (let dx = -12; dx <= 12; dx += 3) { s += baseH(x + dx, walkZ[r]); n++; }
     wp.push([x, walkZ[r], s / n]);
   }
