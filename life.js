@@ -59,13 +59,15 @@ ready(async nv => {
   const LAKE = { cx: 0, cz: -88, rx: 175, rz: 98 };
   const deep = (x, z) => H(x, z) < WL - 1.1;
   const schools = [];
-  for (let tries = 0; schools.length < 9 && tries < 200; tries++) {
+  for (let tries = 0; schools.length < 3 && tries < 200; tries++) {
     const f = rr(.25, .72), ox = rr(-30, 30), oz = rr(-12, 12), ph = rr(0, 6.28), sp = rr(.05, .09) * (R() < .5 ? -1 : 1);
     const at = a => [LAKE.cx + ox + Math.cos(a) * LAKE.rx * f, LAKE.cz + oz + Math.sin(a) * LAKE.rz * f * 1.0];
     let ok = true; for (let k = 0; k < 48; k++) { const p = at(k / 48 * 6.283); if (!deep(p[0], p[1])) { ok = false; break; } }
-    if (ok) schools.push({ at, ph, sp, n: 3 + ((R() * 3) | 0) });
+    if (ok) schools.push({ at, ph, sp, n: 2 + ((R() * 2) | 0) });
   }
-  const lake = []; schools.forEach(s => { for (let k = 0; k < s.n; k++) lake.push({ s, off: k * .05 + rr(0, .03), side: rr(-4, 4), sc: rr(1.7, 2.8), jump: rr(3, 12), jt: -1 }); });
+  const lake = []; schools.forEach(s => { for (let k = 0; k < s.n; k++) lake.push({ s, off: k * .05 + rr(0, .03), side: rr(-4, 4), sc: rr(.5, .9), jump: rr(3, 12), jt: -1 }); });
+  /* one or two big fish, the rest stay small */
+  lake.slice(0, 2).forEach((f, i) => { f.sc = rr(3.2, 4); f.side = 0; f.jump = 9 + i * 5; });
   const lakeM = inst(fishGeo, lake.length, FISH, 5);
 
   /* canal fish swim back and forth along the canals */
@@ -73,8 +75,8 @@ ready(async nv => {
   canals.forEach(c => {
     const cum = [0]; for (let i = 1; i < c.pts.length; i++) cum.push(cum[i - 1] + Math.hypot(c.pts[i][0] - c.pts[i - 1][0], c.pts[i][1] - c.pts[i - 1][1]));
     const len = cum[cum.length - 1]; if (len < 24) return;
-    const n = Math.min(4, 1 + Math.floor(len / 55));
-    for (let k = 0; k < n; k++) cf.push({ c, cum, len, u0: rr(0, len * 2), v: rr(1.2, 2.6), lat: rr(-1.1, 1.1), sc: rr(.6, .95) });
+    const n = len > 90 ? 2 : 1;
+    for (let k = 0; k < n; k++) cf.push({ c, cum, len, u0: rr(0, len * 2), v: rr(1.2, 2.6), lat: rr(-1.1, 1.1), sc: rr(.28, .45) });
   });
   const canM = inst(fishGeo, cf.length, FISH, 5);
   function onLine(f, u) { /* point and direction at distance u along the canal */
