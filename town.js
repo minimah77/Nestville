@@ -194,6 +194,7 @@ function buildStatic() {
   }
   pier(b, L.pier, .9); pier(b, L.yachtPier, .9);
   for (let x = -52; x <= 40; x += 11.5) { const z = sz(x) + 4.2; lamp(b, x, Math.max(1.2, baseH(x, z)), z); }
+  lampSpots().forEach(p => lamp(b, p[0], p[1], p[2]));
   addMesh(stat, b);
 }
 function buildDyn() {
@@ -229,12 +230,78 @@ function updateSmoke(t) {
 }
 
 /* ---------- trees ---------- */
-let treesC = null, treesB = null;
+let treesC = null, treesB = null, treesS = null;
 const conGeo = (() => { const b = new MB(); b.cyl(0, 0, 0, .36, 2.2, 5, '#6b4a32'); b.cone(0, 1.4, 0, 2.7, 5.2, 7, '#2f6b3a'); b.cone(0, 3.9, 0, 2.1, 4.6, 7, '#3a7a45'); b.cone(0, 6.2, 0, 1.4, 4.2, 7, '#46894f'); return b.mesh(matV).geometry; })();
 const brdGeo = (() => { const b = new MB(); b.cyl(0, 0, 0, .42, 3, 5, '#6b4a32'); b.cone(0, 2.2, 0, 2.5, 2.6, 8, '#ffffff', 3.1); b.cone(0, 4.7, 0, 3.1, 2.4, 8, '#ffffff', 1.7); return b.mesh(matV).geometry; })();
 const BRD = ['#6db04a', '#7cba50', '#5ea244', '#8bc14f', '#d9a53a', '#d9703a', '#c9482f'].map(c => new THREE.Color(c));
+
+/* slim sidewalk tree for the canal quays */
+const strGeo = (() => { const b = new MB(); b.cyl(0, 0, 0, .22, 1.9, 5, '#6b4a32'); b.cone(0, 1.3, 0, 1.3, 1.9, 8, '#ffffff', 1); b.cone(0, 3, 0, 1.2, 2, 8, '#ffffff', .6); b.cone(0, 4.7, 0, .85, 1.5, 8, '#ffffff'); return b.mesh(matV).geometry; })();
+const brdTint = (t, cg) => { const p = t[4] < .12 ? BRD[4 + ((t[4] * 100) | 0) % 3] : BRD[((t[4] * 31) | 0) % 4]; return cg.copy(p).multiplyScalar(.9 + t[3] * .1); };
+function streetSpots() {
+  const blk = [], out = [], r = rng(515151);
+  L.houses.forEach(h => blk.push([h.x, h.z, 7]));
+  L.shops.forEach(s => blk.push([s.x, s.z, 7.4]));
+  L.pent.forEach(p => blk.push([p.x, p.z, 8.6]));
+  L.castles.forEach(c => blk.push([c.x, c.z, c.r + 3]));
+  blk.push([L.church.x, L.church.z, 14], [L.plaza.x, L.plaza.z, 11]);
+  for (const k of [0, 2, 4]) { let bz = laneZ(k, 12) + 8.75; bz = laneZ(k, xr(bz)) + 8.75; blk.push([xr(bz), bz, 11]); }
+  const free = (x, z) => {
+    if (H(x, z) < .9 || canalDist(x, z) < 2.4) return false;
+    for (const e of blk) if (Math.hypot(x - e[0], z - e[1]) < e[2]) return false;
+    for (const o of out) if (Math.hypot(x - o[0], z - o[2]) < 6.5) return false;
+    return true;
+  };
+  canals.forEach(c => {
+    const wide = c.w > 3, step = wide ? 13 : 11.2;
+    for (let s = wide ? 8 : 11.6; s < c.len - 4; s += step) {
+      const p = pathAt(c, s), tx = p[2], tz = p[3];
+      for (const side of [1, -1]) {
+        const lat = side * (c.w + 2.7);
+        for (const off of [0, 1.3, -1.3, 2.6, -2.6, 3.9, -3.9]) {
+          const x = p[0] + tx * off - tz * lat, z = p[1] + tz * off + tx * lat;
+          if (free(x, z)) { out.push([x, H(x, z), z, .85 + r() * .35, r()]); break; }
+        }
+      }
+    }
+  });
+  return out;
+}
+
+/* street lamps along the canal quays: clear of doors, trees, bridges and the church square */
+function lampSpots() {
+  const trees = streetSpots(), blk = [], doors = [], out = [];
+  L.pent.forEach(p => blk.push([p.x, p.z, 8.6]));
+  L.castles.forEach(c => blk.push([c.x, c.z, c.r + 3]));
+  blk.push([L.church.x, L.church.z, 14], [L.plaza.x, L.plaza.z, 11]);
+  for (const k of [0, 2, 4]) { let bz = laneZ(k, 12) + 8.75; bz = laneZ(k, xr(bz)) + 8.75; blk.push([xr(bz), bz, 11]); }
+  L.houses.forEach(h => doors.push([h.x + Math.sin(h.yaw) * 4.9, h.z + Math.cos(h.yaw) * 4.9, 2.7]));
+  L.shops.forEach(s => doors.push([s.x + 2.8 * Math.cos(s.yaw) + 5 * Math.sin(s.yaw), s.z - 2.8 * Math.sin(s.yaw) + 5 * Math.cos(s.yaw), 3.6]));
+  const boxes = [...L.houses.map(h => [h.x, h.z, h.yaw, 5.4]), ...L.shops.map(s => [s.x, s.z, s.yaw, 5.2])]; /* never inside a house or shop body */
+  const ok = (x, z) => {
+    if (H(x, z) < .9 || canalDist(x, z) < 1.9) return false;
+    for (const q of boxes) { const dx = x - q[0], dz = z - q[1], lx = dx * Math.cos(q[2]) - dz * Math.sin(q[2]), lz = dx * Math.sin(q[2]) + dz * Math.cos(q[2]); if (Math.abs(lx) < q[3] && lz < 5 && lz > -5.2) return false; }
+    for (const e of blk) if (Math.hypot(x - e[0], z - e[1]) < e[2]) return false;
+    for (const d of doors) if (Math.hypot(x - d[0], z - d[1]) < d[2]) return false;
+    for (const q of trees) if (Math.hypot(x - q[0], z - q[2]) < 2.4) return false;
+    for (const o of out) if (Math.hypot(x - o[0], z - o[2]) < 9) return false;
+    return true;
+  };
+  canals.forEach(c => {
+    for (const side of [1, -1]) {
+      let last = side > 0 ? -22 : -11;
+      const lat = side * (c.w + 2.1);
+      for (let s = 4; s < c.len - 3; s += 1.4) {
+        if (s - last < 22) continue;
+        const p = pathAt(c, s), x = p[0] - p[3] * lat, z = p[1] + p[2] * lat;
+        if (ok(x, z)) { out.push([x, Math.max(1.2, H(x, z)), z]); last = s; }
+      }
+    }
+  });
+  return out;
+}
 function plantTrees(n) {
-  [treesC, treesB].forEach(m => { if (m) { world.remove(m); m.dispose(); } }); treesC = treesB = null;
+  [treesC, treesB, treesS].forEach(m => { if (m) { world.remove(m); m.dispose(); } }); treesC = treesB = treesS = null;
   const r = rng(424242), ex = [];
   L.houses.forEach(h => ex.push([h.x, h.z, 8])); L.pent.forEach(p => ex.push([p.x, p.z, 12.5])); L.shops.forEach(s => ex.push([s.x, s.z, 7]));
   L.cot.forEach(c => ex.push([c.x, c.z, 10]));
@@ -242,11 +309,13 @@ function plantTrees(n) {
   const con = [], brd = []; let tries = 0;
   while (con.length + brd.length < n && tries < n * 14) {
     tries++;
-    const x = -330 + r() * 660, z = -120 + r() * 500, h = H(x, z);
+    const x = -330 + r() * 660, z = -330 + r() * 710, h = H(x, z);
     if (h < 1.7 || h > 95) continue;
-    const town = x > TOWN.x0 && x < TOWN.x1 && z > TOWN.z0 && z < TOWN.z1, f = fbm(x * .022 + 7, z * .022 + 2, 3);
-    if (town) { if (r() > .1 + (f > .55 ? .4 : 0)) continue; } else if (f < .44 && h < 60 && r() > .2) continue;
-    if (town && roadDist(x, z) < 4.5) continue;
+    if (x > TOWN.x0 && x < TOWN.x1 && z > TOWN.z0 && z < 150) continue; /* the village: trees only along the canals */
+    if (Math.abs(x) < 108 && z > -270 && z < -186) continue; /* the cottage district stays open */
+    const f = fbm(x * .022 + 7, z * .022 + 2, 3);
+    if (f < .44 && h < 60 && r() > .2) continue;
+    if (h < 9 && r() > .12) continue; /* low ground stays mostly open, the forest is on the mountains */
     if (canalDist(x, z) < 4.5) continue;
     if (z > 135 && Math.abs(x - xr(z)) < 9) continue;
     let bad = false; for (const e of ex) { if (Math.hypot(x - e[0], z - e[1]) < e[2]) { bad = true; break; } } if (bad) continue;
@@ -261,7 +330,8 @@ function plantTrees(n) {
   };
   const cg = new THREE.Color();
   treesC = mk(conGeo, con, t => cg.setScalar(.82 + t[4] * .36));
-  treesB = mk(brdGeo, brd, t => { const p = t[4] < .12 ? BRD[4 + ((t[4] * 100) | 0) % 3] : BRD[((t[4] * 31) | 0) % 4]; return cg.copy(p).multiplyScalar(.9 + t[3] * .1); });
+  treesB = mk(brdGeo, brd, t => brdTint(t, cg));
+  const ss = streetSpots(); if (ss.length) treesS = mk(strGeo, ss, t => brdTint(t, cg));
   dm.rotation.set(0, 0, 0);
 }
 
