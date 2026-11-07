@@ -1,38 +1,98 @@
-/* Nestville shared data: state, demo residents, avatars, preview stats */
+/* Nestville shared data: residents, economy, avatars */
 export const KINDS = ['Bakery', 'Nail salon', 'Hair salon', 'Cafe', 'Flower shop', 'Barber'];
 export const PH_PRICES = Array.from({ length: 10 }, (_, i) => 150000 + i * 10000);
 export const SHOP_PRICE = 50000;
+export const COT_PRICES = Array.from({ length: 40 }, (_, i) => 30000 + ((i * 37) % 41) * 1000); /* 30,000 to 70,000 IRT */
 export const IG_DM = ''; /* Paste your Instagram DM link here when buying goes live */
-export const fmt = n => n.toLocaleString('en-US') + ' IRT';
+export const fmt = n => n.toLocaleString('en-US') + ' IRT'; /* real prices (Toman) */
+export const coins = n => Math.round(n).toLocaleString('en-US'); /* in-game Nest coins */
 
-export const DEMO = ['mia.codes', 'alex_trav', 'sofia.lens', 'noor.designs', 'leo_makes', 'kian.fit', 'zara.eats', 'omid.dev',
-  'luna_art', 'dara.films', 'sam.builds', 'yara.moves', 'jay_wanders', 'tina.bakes', 'arman.pix', 'eli.writes', 'niko_reels',
-  'bella.home', 'rami.sounds', 'chloe.cafe', 'amir_gym', 'sara.plants', 'ben.studio', 'maya.cooks', 'kaveh.tv', 'ola_travels',
-  'pari.nails', 'theo.skate', 'nila.glow', 'hugo.drone', 'ava.styles', 'reza.cuts', 'ida.paints', 'finn.trails', 'roya.lens',
-  'milo.codes', 'sina.sets', 'lia.daily', 'cyrus.fx', 'emma.yoga'];
+/* Properties you have sold. After a sale, add the buyer's handle here (index -> handle) and push.
+   Example: ph: { 0: 'mia.codes' }, cot: { 3: 'alex_trav' }, shops: { 1: 'sara.plants' }.
+   Owners count as land and earn daily rent. */
+export const OWNERS = { ph: {}, cot: {}, shops: {} };
 
-const KEY = 'nv3';
+/* ---------- economy ----------
+   Nest coins are free to earn and only decide the leaderboard. They are not IRT.
+   - Moving in gives WELCOME coins.
+   - Each day a resident collects DAILY coins plus a streak bonus (+100 per day, up to +2,900).
+   - Every property a resident owns pays rent each day, collected together with the daily reward
+     (rent builds up for at most RENT_CAP days while away).
+   - Richest = coins. Land = house plus properties owned. Streak = consecutive daily check-ins. */
+export const WELCOME = 10000, DAILY = 1000, RENT_CAP = 7;
+export const RENT = { cot: p => p / 100, sh: p => p / 50, ph: p => p / 60 };
+const DAY = 864e5;
+export const today = () => { const d = new Date(); return Math.floor((d.getTime() - d.getTimezoneOffset() * 60000) / DAY); };
+export const priceOf = p => p.k === 'ph' ? PH_PRICES[p.i] : p.k === 'sh' ? SHOP_PRICE : COT_PRICES[p.i];
+
+export function ensure(r) {
+  if (r.coins === undefined) r.coins = WELCOME;
+  if (r.streak === undefined) r.streak = 0;
+  if (r.lastDaily === undefined) r.lastDaily = -9;
+  if (r.lastRent === undefined) r.lastRent = today();
+  if (!r.joined) r.joined = Date.now();
+  return r;
+}
+
+const KEY = 'nv4';
+let CUR = null;
 export function load() {
-  let S = { houses: [], ph: Array(10).fill(null), shops: Array(6).fill(null), seeded: 0 };
+  let S = { houses: [], ph: Array(10).fill(null), shops: Array(6).fill(null), cot: Array(40).fill(null) };
   try {
     const x = JSON.parse(localStorage.getItem(KEY) || 'null');
     if (x && x.houses) S = Object.assign(S, x);
     else {
-      const old = JSON.parse(localStorage.getItem('nv2') || 'null');
-      if (old && old.houses) {
-        S.houses = old.houses.filter(h => h.code !== 'DEMO');
-        if (old.shops) S.shops = old.shops;
-        if (old.ph) S.ph = old.ph;
+      /* older saves: keep real claims, drop the preview residents that used to be seeded */
+      for (const k of ['nv3', 'nv2']) {
+        const old = JSON.parse(localStorage.getItem(k) || 'null');
+        if (!old || !old.houses) continue;
+        old.houses.forEach(h => { if (h && h.u && h.code !== 'DEMO') S.houses.push({ u: h.u, code: 'USER' }); });
+        if (old.me) S.me = old.me;
+        break;
       }
     }
   } catch (e) { }
-  if (!S.seeded) {
-    DEMO.forEach(u => { if (!S.houses.some(h => h.u === u)) S.houses.push({ u, code: 'DEMO' }); });
-    S.seeded = 1;
-  }
+  S.houses = (S.houses || []).filter(r => r && r.u && r.code !== 'DEMO');
+  S.houses.forEach(ensure);
+  /* ownership comes only from the OWNERS list above */
+  S.ph = Array(10).fill(null); S.shops = Array(6).fill(null); S.cot = Array(40).fill(null);
+  for (const k of ['ph', 'cot', 'shops']) for (const [i, u] of Object.entries(OWNERS[k] || {})) S[k][+i] = { u };
+  if (S.me && !S.houses.some(r => r.u === S.me)) delete S.me;
+  CUR = S; save(S);
   return S;
 }
 export function save(S) { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { } }
+
+export function owned(S, u) {
+  const o = [];
+  S.ph.forEach((x, i) => x && x.u === u && o.push({ k: 'ph', i }));
+  S.shops.forEach((x, i) => x && x.u === u && o.push({ k: 'sh', i }));
+  S.cot.forEach((x, i) => x && x.u === u && o.push({ k: 'cot', i }));
+  return o;
+}
+export const liveStreak = r => (r.lastDaily >= today() - 1 ? r.streak : 0);
+export const dailyDone = r => r.lastDaily === today();
+export const dailyAmount = r => DAILY + Math.min(Math.max(0, (r.lastDaily === today() - 1 ? r.streak : 0)), 29) * 100;
+export function rentDue(S, r) {
+  const days = Math.min(RENT_CAP, Math.max(0, today() - (r.lastRent === undefined ? today() : r.lastRent)));
+  const per = owned(S, r.u).reduce((a, p) => a + RENT[p.k](priceOf(p)), 0);
+  return { days, per: Math.round(per), amt: Math.round(days * per) };
+}
+export function claimDaily(S, r) {
+  ensure(r);
+  if (dailyDone(r)) return null;
+  const amount = dailyAmount(r), rent = rentDue(S, r), t = today();
+  r.streak = (r.lastDaily === t - 1 ? r.streak : 0) + 1;
+  r.lastDaily = t; r.lastRent = t; r.coins += amount + rent.amt;
+  return { amount, rent: rent.amt, streak: r.streak };
+}
+/* Live standings for a resident, read from the loaded state */
+export function stats(u) {
+  const r = CUR && CUR.houses.find(h => h.u === u);
+  if (!r) return { coins: 0, land: 0, streak: 0 };
+  ensure(r);
+  return { coins: r.coins, land: 1 + owned(CUR, u).length, streak: liveStreak(r) };
+}
 
 export const hs = s => [...String(s)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7);
 export function rng(seed) {
@@ -56,10 +116,4 @@ export function avatar(u, size = 44) {
     `<path d="M19.500 28c-1-9 5-14 12.500-14s13.500 5 12.500 14c-3-4-7-6-12.500-6S22.500 24 19.500 28z" fill="${hr}"/>` +
     `<circle cx="27" cy="31" r="1.500" fill="#2b2118"/><circle cx="37" cy="31" r="1.500" fill="#2b2118"/>` +
     `<path d="M28 37c2.500 2 5.500 2 8 0" stroke="#7a3f2c" stroke-width="1.600" fill="none" stroke-linecap="round"/></svg>`;
-}
-
-/* Preview standings. Deterministic from the handle so the board feels alive before launch. */
-export function stats(u) {
-  const r = rng(hs(u) * 7 + 3);
-  return { coins: 90000 + Math.floor(r() * 820000), land: 1 + Math.floor(r() * 9), streak: 2 + Math.floor(r() * 120) };
 }
