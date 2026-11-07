@@ -137,13 +137,7 @@ export function layout() {
   addPad(tx, tzz, 5, 2.6, 7);
   L.castles.push({ id: 'tower', x: tx, z: tzz, y: 2.6, name: 'Old watchtower', k: 'castle', w: 8, d: 8, hgt: 28, r: 6, yaw: 0 });
 
-  /* shops on the promenade */
-  for (let i = 0; i < 6; i++) {
-    const x = -42 + i * 10.5, z = sz(x) + 5.5, h = Math.max(1.3, baseH(x, z));
-    addPad(x, z, 5.2, h, 4);
-    L.shops.push({ i, x, z, y: h, yaw: Math.PI, name: KIND[i], k: 'shop', w: 9, d: 7, hgt: 18 });
-  }
-  /* promenade strip */
+  /* promenade strip (the shops now live inside the town, see below) */
   roads.push(Array.from({ length: 14 }, (_, i) => { const x = -52 + i * 8; return [x, sz(x) + 2.2]; }));
   /* piers: the village pier and the yacht club pier */
   const px = -6; L.pier = { x: px, z0: sz(px) + 1, len: 24 };
@@ -160,7 +154,7 @@ export function layout() {
     segs.forEach(p => addCanal(p, 2.3));
   }
 
-  /* penthouses: two groups either side of the river, facing the last canal */
+  /* penthouses: two groups either side of the river, facing the last canal. 8 floors tall */
   const zr = z0 + 16 + NROWS * PITCH + 9.8, xrr = xr(zr);
   const xs = [];
   for (let k = 0; k < 5; k++) { xs.push(xrr - 22 - k * 17); xs.push(xrr + 22 + k * 17); }
@@ -169,8 +163,24 @@ export function layout() {
     const z = laneZ(NROWS, x) + 9.8 + (((i * 37) % 5) - 2) * .8;
     const h = baseH(x, z) + .4;
     addPad(x, z, 8.5, h, 6);
-    L.pent.push({ i, x, z, y: h, yaw: Math.PI + ((i % 3) - 1) * .06, name: 'Penthouse ' + (i + 1), k: 'ph', w: 11, d: 9, hgt: 34 });
+    L.pent.push({ i, x, z, y: h, yaw: Math.PI + ((i % 3) - 1) * .06, name: 'Penthouse ' + (i + 1), k: 'ph', w: 11, d: 9, hgt: 61 });
   });
+
+  /* shops: spread through the town between the houses, never next to each other */
+  const shopOK = (x, z) => Math.abs(x - xr(z)) > 16 && Math.hypot(x - cx, z - cz) > 28 && Math.hypot(x - L.plaza.x, z - L.plaza.z) > 20 &&
+    Math.hypot(x - lc.x, z - lc.z) > 30 && baseH(x, z) > 1.2 && canalDist(x, z) > 5 &&
+    !L.pent.some(p => Math.hypot(x - p.x, z - p.z) < 17) && !L.castles.some(c => Math.hypot(x - c.x, z - c.z) < c.r + 10);
+  const tryShop = (r, x, gap) => {
+    if (L.shops.length >= 6) return;
+    const z = laneZ(r, x) + 9.6;
+    if (!shopOK(x, z)) return;
+    if (L.shops.some(s => Math.hypot(x - s.x, z - s.z) < gap)) return;
+    const h = Math.max(1.3, baseH(x, z)), i = L.shops.length;
+    addPad(x, z, 5.2, h, 4);
+    L.shops.push({ i, x, z, y: h, yaw: Math.PI, name: KIND[i], k: 'shop', w: 9, d: 7, hgt: 18 });
+  };
+  for (const [r, x] of [[1, -122], [2, -72], [3, 40], [4, 112], [2, 126], [5, -24], [3, -110], [4, -60], [5, 70], [1, 84], [3, -40], [2, 22]]) tryShop(r, x, 34);
+  for (let r = 0; r < NROWS && L.shops.length < 6; r++) for (let x = -150; x <= 150; x += 14) tryShop(r, x, 26);
 
   /* houses: rows facing the canals */
   const cands = [];
@@ -189,6 +199,7 @@ export function layout() {
     if (baseH(c.x, c.z) < 1.2) return false;
     if (canalDist(c.x, c.z) < 5) return false;
     for (const p of L.pent) if (Math.hypot(c.x - p.x, c.z - p.z) < 17) return false;
+    for (const s of L.shops) if (Math.hypot(c.x - s.x, c.z - s.z) < 12) return false;
     for (const cs of L.castles) if (Math.hypot(c.x - cs.x, c.z - cs.z) < cs.r + 10) return false;
     return true;
   };
