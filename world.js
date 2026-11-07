@@ -26,7 +26,7 @@ export function baseH(x, z) {
   const south = 2.1 + Math.max(0, z - 150) * .16 + Math.max(0, z - 235) * .14;
   h += land * (south + (fbm(x * .02 + 1, z * .02 + 4, 3) - .5) * (1.6 + 7 * hills) * sm(0, 60, z) + (fbm(x * .05, z * .05, 2) - .5) * (.9 + 1.6 * hills));
   /* mountains: lower than before and much farther from the village */
-  const mm = Math.max(sm(-210, -330, z), sm(205, 330, Math.abs(x)), sm(235, 350, z)) * sm(1.0, 1.35, e);
+  const mm = Math.max(sm(-290, -410, z), sm(275, 395, Math.abs(x)), sm(300, 415, z)) * sm(1.0, 1.35, e); /* wide flat meadow between the village and the mountains */
   if (mm > 0) {
     const r = 1 - Math.abs(2 * fbm(x * .0075 + 11, z * .0075 + 5, 5) - 1);
     h += mm * (16 + r * r * 62 * (.55 + .45 * fbm(x * .004 + 30, z * .004 + 2, 2)) + fbm(x * .03, z * .03, 3) * 12);
@@ -229,6 +229,8 @@ export function layout() {
     wp.push([x, walkZ[r], s / n]);
   }
   wp.forEach(p => addPad(p[0], p[1], 1.6, p[2], 3.2));
+  /* promenade quay: only ever raises low shore under the walkway so its front edge stays on dry land (no stone in the water) */
+  for (let x = L.walk.x0; x <= L.walk.x1; x += 2.4) { const h0 = H(x, L.walk.prom); if (h0 < 1.5) addPad(x, L.walk.prom, 2.2, 1.5, 3); }
   return L;
 }
 const KIND = ['Bakery', 'Nail salon', 'Hair salon', 'Cafe', 'Flower shop', 'Barber'];
