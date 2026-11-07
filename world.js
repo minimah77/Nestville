@@ -23,7 +23,7 @@ export function baseH(x, z) {
   const land = sm(.97, 1.1, e);
   const south = Math.max(0, z - 4) * .2 + Math.max(0, z - 105) * .18;
   h += land * (south + (fbm(x * .02 + 1, z * .02 + 4, 3) - .5) * 9 * sm(0, 60, z) + (fbm(x * .05, z * .05, 2) - .5) * 2.5);
-  let mm = Math.max(sm(-140, -230, z), sm(135, 235, Math.abs(x)), sm(175, 260, z) * .55) * sm(1.0, 1.35, e);
+  let mm = Math.max(sm(-140, -230, z), sm(135, 235, Math.abs(x)), sm(150, 235, z)) * sm(1.0, 1.35, e);
   if (mm > 0) {
     const r = 1 - Math.abs(2 * fbm(x * .0075 + 11, z * .0075 + 5, 5) - 1);
     h += mm * (22 + r * r * 150 * (.55 + .45 * fbm(x * .004 + 30, z * .004 + 2, 2)) + fbm(x * .03, z * .03, 3) * 24);
