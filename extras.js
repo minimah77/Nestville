@@ -61,7 +61,7 @@ ready(nv => {
   setInterval(() => { const n = S.houses.length; if (n !== last) { last = n; rebuild(); } }, 300);
   (function pulse(t) { requestAnimationFrame(pulse); haloMat.opacity = .2 + .13 * Math.sin(t * .0024); })(0);
 
-  /* ---------- three camera views ---------- */
+  return; /* the three views now live in town.js */
   const mobile = innerWidth / innerHeight < .8;
   const phs = nv.ents.filter(e => e.kind === 'ph').sort((a, b) => Math.abs(a.x) - Math.abs(b.x));
   const VIEWS = {
