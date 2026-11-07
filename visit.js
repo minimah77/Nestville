@@ -69,8 +69,24 @@ ready(nv => {
     discTex = new THREE.CanvasTexture(d); discTex.colorSpace = THREE.SRGBColorSpace;
   }
 
+  /* ---------- the REAL view: before walking in, photograph the actual village from the windows (6 faces) ---------- */
+  const LAKE = { x: 0, z: -85 };
+  function capture(e) {
+    const lx = LAKE.x - e.x, lz = LAKE.z - e.z, l = Math.hypot(lx, lz) || 1, dx = lx / l, dz = lz / l;
+    const out = e.r + 1.5, h = e.kind === 'ph' ? 40 : e.kind === 'shop' ? 6 : 8;
+    const rt = new THREE.WebGLCubeRenderTarget(512, { type: THREE.HalfFloatType, generateMipmaps: false });
+    const cc = new THREE.CubeCamera(1, 3500, rt);
+    cc.position.set(e.x + dx * out, e.y + h, e.z + dz * out);
+    cc.rotation.y = Math.atan2(-dx, -dz); /* the room's windows (-z) look toward the lake */
+    const rings = scene.children.filter(o => o.geometry && o.geometry.type === 'RingGeometry'), was = rings.map(o => o.visible);
+    rings.forEach(o => { o.visible = false; });
+    const sm = nv.renderer.shadowMap, sa = sm.autoUpdate; sm.autoUpdate = false;
+    try { cc.update(nv.renderer, scene); } finally { sm.autoUpdate = sa; rings.forEach((o, i) => { o.visible = was[i]; }); }
+    return rt;
+  }
+
   /* ---------- camera state ---------- */
-  let visiting = false, snap = null, room = null, ent = null, outer = null, pano = null, disc = null, mode = 'cut', camIdx = 0, hemi = null, hemiSave = null;
+  let bgRT = null, bgSave = null, visiting = false, snap = null, room = null, ent = null, outer = null, pano = null, disc = null, mode = 'cut', camIdx = 0, hemi = null, hemiSave = null;
   const P = { pos: new THREE.Vector3(), quat: new THREE.Quaternion(), fov: 60 };
   const D = { oyaw: .25, opitch: .7, dist: 20, fyaw: 0, fpitch: 0, fpos: new THREE.Vector3(), ffov: 72, tgt: new THREE.Vector3() };
   const tmpO = new THREE.Object3D(), eul = new THREE.Euler(0, 0, 0, 'YXZ'), want = new THREE.Vector3(), wantQ = new THREE.Quaternion();
@@ -116,16 +132,21 @@ ready(nv => {
   let toastT = 0;
   function say(m) { const t = $('toast'); if (!t) return; t.textContent = m; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 2600); }
   function enter(e) {
-    if (visiting) return; makeTex();
+    if (visiting) return;
+    try { bgRT = capture(e); } catch (err) { bgRT = null; }
+    if (!bgRT) makeTex();
     ent = e; room = buildRoom(specOf(e));
     snap = { cam: { ...nv.cam }, goal: { ...nv.goal }, mode: nv.view.mode, fog: scene.fog, near: camera.near, far: camera.far };
     outer = new THREE.Group(); outer.position.set(OX, 0, OZ);
     outer.add(room.group);
     const eye = room.isPh ? 1.7 : 1.6;
-    pano = new THREE.Mesh(new THREE.CylinderGeometry(160, 160, 300, 48, 1, true), new THREE.MeshBasicMaterial({ map: panoTex, side: THREE.BackSide, fog: false, toneMapped: false }));
-    pano.position.y = eye; outer.add(pano);
-    disc = new THREE.Mesh(new THREE.CircleGeometry(160, 40).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: discTex, fog: false, toneMapped: false }));
-    disc.position.y = room.isPh ? -40 : -.6; outer.add(disc);
+    if (bgRT) { bgSave = scene.background; scene.background = bgRT.texture; }
+    else { /* fallback if the photo could not be taken: the old painted panorama */
+      pano = new THREE.Mesh(new THREE.CylinderGeometry(160, 160, 300, 48, 1, true), new THREE.MeshBasicMaterial({ map: panoTex, side: THREE.BackSide, fog: false, toneMapped: false }));
+      pano.position.y = eye; outer.add(pano);
+      disc = new THREE.Mesh(new THREE.CircleGeometry(160, 40).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: discTex, fog: false, toneMapped: false }));
+      disc.position.y = room.isPh ? -40 : -.6; outer.add(disc);
+    }
     scene.add(outer);
     scene.fog = null; hemi = scene.children.find(o => o.isHemisphereLight);
     if (hemi) { hemiSave = [hemi.intensity, hemi.groundColor.getHex()]; hemi.intensity = 1.55; hemi.groundColor.set('#fff1dc'); }
@@ -141,7 +162,9 @@ ready(nv => {
   }
   function leave(toRoof) {
     if (!visiting) return; visiting = false;
-    scene.remove(outer); [pano, disc].forEach(m => { m.geometry.dispose(); m.material.dispose(); }); pano = disc = outer = null;
+    scene.remove(outer); [pano, disc].forEach(m => { if (m) { m.geometry.dispose(); m.material.dispose(); } }); pano = disc = null;
+    outer.traverse(o => { if (o.geometry && o.geometry.userData.own) o.geometry.dispose(); }); outer = null;
+    if (bgRT) { scene.background = bgSave; bgSave = null; bgRT.dispose(); bgRT = null; }
     scene.fog = snap.fog; if (hemi && hemiSave) { hemi.intensity = hemiSave[0]; hemi.groundColor.setHex(hemiSave[1]); }
     camera.near = 1; camera.far = 3500; camera.quaternion.identity(); camera.updateProjectionMatrix();
     Object.assign(nv.cam, snap.cam); Object.assign(nv.goal, snap.goal); nv.view.mode = snap.mode;
