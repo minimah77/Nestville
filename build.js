@@ -394,6 +394,20 @@ export function boat(b, x, y, z, yaw, hull, sail, big = 1) {
   b.T(p, q, r, sail); b.T(p, r, q, K(sail).clone().multiplyScalar(.9));
   b.T([0, 1.2 * s, -.2 * s], [0, 5.8 * s, -.2 * s], r2, K(sail).clone().multiplyScalar(.97)); b.T([0, 1.2 * s, -.2 * s], r2, [0, 5.8 * s, -.2 * s], K(sail).clone().multiplyScalar(.85));
 }
+/* classic English cast-iron street lamp: stepped plinth, fluted column, glass lantern with a pyramid hat */
 export function lamp(b, x, y, z) {
-  b.at(x, y, z, 0); b.box(0, 0, 0, .22, 4.2, .22, '#33373f'); b.box(0, 4.2, 0, .8, .9, .8, '#ffe6a0'); b.box(0, 5.1, 0, 1, .22, 1, '#33373f');
+  const iron = '#232d29', gold = '#c9a24a', glass = '#fff0b8';
+  b.at(x, y, z, 0);
+  b.box(0, -.3, 0, .74, .72, .74, iron);
+  b.box(0, .42, 0, .54, .3, .54, iron);
+  b.cyl(0, .72, 0, .3, 1.5, 10, iron);
+  b.cyl(0, 2.22, 0, .4, .2, 10, iron);
+  b.cyl(0, 2.42, 0, .19, 1.9, 10, iron);
+  b.cyl(0, 4.32, 0, .29, .16, 10, iron);
+  b.box(0, 4.48, 0, .84, .14, .84, iron);
+  b.cone(0, 4.62, 0, .5, 1.05, 4, glass, .72);
+  for (const [dx, dz] of [[.61, 0], [-.61, 0], [0, .61], [0, -.61]]) b.box(dx, 4.62, dz, .08, 1.05, .08, iron);
+  b.cone(0, 5.67, 0, .92, .5, 4, iron);
+  b.cyl(0, 6.15, 0, .08, .3, 6, gold);
+  b.cone(0, 6.4, 0, .17, .26, 6, gold);
 }
