@@ -193,7 +193,7 @@ function buildStatic() {
     bridge(b, cx, bank - .8, bz);
   }
   pier(b, L.pier, .9); pier(b, L.yachtPier, .9);
-  for (let x = -52; x <= 40; x += 11.5) { const z = sz(x) + 4.2; lamp(b, x, Math.max(1.2, baseH(x, z)), z); }
+  for (let x = -52; x <= 40; x += 34.5) { const z = sz(x) + 4.2; lamp(b, x, Math.max(1.2, baseH(x, z)), z); }
   lampSpots().forEach(p => lamp(b, p[0], p[1], p[2]));
   addMesh(stat, b);
 }
@@ -284,15 +284,15 @@ function lampSpots() {
     for (const e of blk) if (Math.hypot(x - e[0], z - e[1]) < e[2]) return false;
     for (const d of doors) if (Math.hypot(x - d[0], z - d[1]) < d[2]) return false;
     for (const q of trees) if (Math.hypot(x - q[0], z - q[2]) < 2.4) return false;
-    for (const o of out) if (Math.hypot(x - o[0], z - o[2]) < 9) return false;
+    for (const o of out) if (Math.hypot(x - o[0], z - o[2]) < 30) return false;
     return true;
   };
   canals.forEach(c => {
     for (const side of [1, -1]) {
-      let last = side > 0 ? -22 : -11;
+      let last = side > 0 ? -60 : -30;
       const lat = side * (c.w + 2.1);
       for (let s = 4; s < c.len - 3; s += 1.4) {
-        if (s - last < 22) continue;
+        if (s - last < 60) continue;
         const p = pathAt(c, s), x = p[0] - p[3] * lat, z = p[1] + p[2] * lat;
         if (ok(x, z)) { out.push([x, Math.max(1.2, H(x, z)), z]); last = s; }
       }
@@ -717,4 +717,4 @@ applyGfx(true).then(() => {
   const m = location.hash.match(/^#@?([\w.]+)/); if (m) setTimeout(() => findResident(m[1]), 600);
 });
 requestAnimationFrame(frameLoop);
-window.__nv = { S, ents, select, fly, cam, goal, view, setView, renderer, scene, camera, applyGfx: g => { gfx = g; return applyGfx(false); } };
+window.__nv = { get sel() { return sel; }, S, ents, select, fly, cam, goal, view, setView, renderer, scene, camera, applyGfx: g => { gfx = g; return applyGfx(false); } };
