@@ -1,6 +1,7 @@
 /* Nestville geometry: a tiny flat-shaded mesh builder plus every building */
 import * as THREE from './lib.js';
 import { rng, hs } from './shared.js';
+import { flowerBed, windowBox, pottedFlower } from './flowers.js';
 
 const CC = new Map();
 export const K = h => { if (typeof h !== 'string') return h; let c = CC.get(h); if (!c) { c = new THREE.Color(h); CC.set(h, c); } return c; };
@@ -155,10 +156,7 @@ function win(b, x, y, zf, w, h, sh, flower, fcol) {
   b.box(x - .04, y, zf + .12, .08, h, .04, '#f8f4e8');
   b.box(x - w / 2 - .5, y - .05, zf + .08, .62, h + .1, .08, sh);
   b.box(x + w / 2 + .5, y - .05, zf + .08, .62, h + .1, .08, sh);
-  if (flower) {
-    b.box(x, y - .62, zf + .4, w + .5, .42, .62, '#6a4a32');
-    for (let i = 0; i < 4; i++) b.box(x - w / 2 + .3 + i * (w - .6) / 3, y - .28, zf + .4, .5, .42, .5, fcol[i % fcol.length]);
-  }
+  if (flower) windowBox(b, x, y - .62, zf + .4, w + .5, Math.round(x * 10 + y * 7)); /* a real window box: wood planter, leaves, daisies, tulips, poppies */
 }
 const FL = ['#e0527a', '#f3a6c0', '#d9463a', '#fff3d6', '#f0b13a'];
 const WALL = ['#f3ead3', '#f6f2e8', '#f0d9a2', '#ecc9a8', '#dbe4e6', '#e9e1c8', '#f2e2c4'];
@@ -190,7 +188,7 @@ export function chalet(b, x, y, z, yaw, u, smoke) {
       b.box(0, 4.15, zu + .8, w * .62, .22, 1.6, '#7a5336');
       for (let i = 0; i <= 8; i++) b.box(-w * .31 + i * w * .62 / 8, 4.37, zu + 1.5, .1, .85, .1, '#8a5b39');
       b.box(0, 5.2, zu + 1.5, w * .62, .1, .16, '#8a5b39');
-      for (let i = 0; i < 5; i++) b.box(-w * .27 + i * w * .135, 5.3, zu + 1.5, .5, .4, .4, FL[(i + 1) % 5]);
+      windowBox(b, 0, 5.2, zu + 1.5, w * .6, 91);
     }
   }
   let rh;
@@ -211,8 +209,7 @@ export function openLot(b, x, y, z, yaw) {
   for (let i = -4; i <= 4; i++) b.box(i * 1.0, 0, zf, .16, .8, .1, '#f5f0e4');
   b.box(0, .5, zf, 8, .08, .08, '#f5f0e4');
   b.box(-3.5, 0, zf - .4, .16, 3.0, .16, '#7a5336'); b.box(-3.5, 1.6, zf - .4, 2.4, 1.1, .12, '#e9a93a');
-  const r = rng(Math.floor(x * 7 + z * 13) + 3);
-  for (let i = 0; i < 6; i++) b.box((r() - .5) * 7, 0, (r() - .5) * 6, .4, .36 + r() * .3, .4, FL[(r() * 5) | 0]);
+  flowerBed(b, -1.6, 0, -.2, 4.6, 4.6, 12, Math.floor(x * 7 + z * 13) + 3);
   b.box(1, 0, 0, .3, 2.2, .3, '#6a4a32'); b.cone(1, 1.3, 0, 1.1, 1.8, 6, '#6aa84a');
 }
 
@@ -396,34 +393,39 @@ export function shop(b, S, owned) {
   b.box(0, 8.8, d / 2 + .6, 5.6, 1.5, .25, AWN[k]); b.box(0, 8.8, d / 2 + .5, 5.9, 1.8, .15, '#fffaf0');
   b.box(0, 8.95, d / 2 + .8, 5.2, 1.2, .1, AWN[k]);
   b.box(w * .3, 8, -1, 1, 6, 1, '#a67856');
-  for (let i = 0; i < 3; i++) b.box(-3 + i * 1.3, 0, d / 2 + 1.4, 1, .9, 1, FL[i]);
+  for (let i = 0; i < 3; i++) pottedFlower(b, -3 + i * 1.3, 0, d / 2 + 1.4, ['tulip', 'daisy', 'poppy'][i], undefined, 1.25);
 }
 
-/* ---------------- lakeview cottage (north shore) ---------------- */
+/* ---------------- lakeview cottage (north shore): calm and minimal, every one in its own soft colour ---------------- */
+const COTW = ['#f7c6d2', '#f9dcae', '#f6efb0', '#c4eac6', '#bde0f6', '#dccff6', '#f6b7a4', '#fff6e6']; /* rose, apricot, lemon, mint, sky, lilac, coral, cream. rooms.js uses the same order for the inside */
+const COTR = ['#c9604a', '#5f93a3', '#6a7fb5', '#8a6f9e', '#d9a441', '#5e9a64', '#b24a5a', '#7a5c48'];
 export function cottage(b, C, owned, smoke) {
-  const r = rng(C.i * 97 + 13), pick = a => a[(r() * a.length) | 0];
-  const wall = pick(WALL), roof = pick(ROOFS), sh = pick(SHUT), tim = pick(TIM), door = pick(['#5c3a20', '#2f6e62', '#b3372d', '#3f6a8f']);
-  const w = 6.6, d = 5.4, zf = d / 2, gz = zf + 4.1;
+  const r = rng(C.i * 97 + 13), pick = a => a[(r() * a.length) | 0], row = Math.floor(C.i / 10);
+  const wall = COTW[(C.i * 3 + row * 5) % 8], roof = COTR[(C.i * 5 + row * 3 + 2) % 8], door = pick(['#c9604a', '#3f7a8f', '#e0a43a', '#4f9d69', '#8a62c4', '#d9577f']);
+  const w = 6.6, d = 5.4, zf = d / 2, gz = zf + 4.1, trim = '#fffaf0';
   b.at(C.x, C.y, C.z, C.yaw);
-  b.box(0, -2.6, 0, w + .5, 3.2, d + .5, '#8f897d');
+  b.box(0, -2.6, 0, w + .5, 3.2, d + .5, '#9a948a');
   b.box(0, .6, 0, w, 3.3, d, wall);
-  b.gable(0, 3.9, 0, w, d, 3.2, .7, roof, tim);
-  b.box(0, 4.7, zf + .04, 1.1, 1.2, .08, '#4f7894'); b.box(0, 4.6, zf + .02, 1.5, 1.6, .06, '#f8f4e8');
-  b.box(0, .6, zf + .03, 1.4, 2.6, .12, door); b.box(0, 3.2, zf + .03, 1.7, .22, .14, '#f8f4e8');
-  /* little stone balcony at the door (like the house in Up), then three steps down to the garden path */
-  b.box(0, -.1, zf + .75, 2.8, .65, 1.5, '#a7a69e');
-  for (const s of [-1, 1]) b.box(s * 1.3, .55, zf + .75, .2, .55, 1.5, '#8d8c85');
-  ramp(b, 0, zf + 1.5, 2.6, .55, .02, 1.8, '#b3b2aa', '#8d8c85'); /* soft ramp down to the garden path */
-  win(b, -2, 1.8, zf, 1.1, 1.4, sh, true, FL); win(b, 2, 1.8, zf, 1.1, 1.4, sh, true, FL);
+  b.box(0, .6, 0, w + .14, .34, d + .14, K(wall).clone().multiplyScalar(.9)); /* one soft skirting band, nothing else */
+  b.gable(0, 3.9, 0, w, d, 3.2, .7, roof, wall);
+  b.box(0, 4.7, zf + .04, 1.1, 1.2, .08, '#6f9bb4'); b.box(0, 4.6, zf + .02, 1.5, 1.6, .06, trim);
+  b.box(0, 5.25, zf + .08, 1.1, .06, .05, trim); b.box(0, 4.7, zf + .08, .06, 1.2, .05, trim);
+  b.box(0, .6, zf + .03, 1.4, 2.6, .12, door); b.box(0, 3.2, zf + .03, 1.7, .22, .14, trim);
+  b.box(.45, 1.7, zf + .1, .1, .1, .06, '#e6c07a');
+  /* a low stone landing at the door, then a soft ramp down to the garden path */
+  b.box(0, -.1, zf + .75, 2.8, .65, 1.5, '#b3b2aa');
+  ramp(b, 0, zf + 1.5, 2.6, .55, .02, 1.8, '#b3b2aa', '#8d8c85');
+  pottedFlower(b, -1.05, .55, zf + .95, 'tulip', undefined, .9); pottedFlower(b, 1.05, .55, zf + .95, 'daisy', undefined, .9);
+  win(b, -2, 1.8, zf, 1.1, 1.4, roof, true, FL); win(b, 2, 1.8, zf, 1.1, 1.4, roof, true, FL);
   const cx = w * .25, cz = -d * .15;
-  b.box(cx, 3.9, cz, .9, 4.4, .9, '#a67856'); b.box(cx, 8.3, cz, 1.2, .26, 1.2, '#8c6244');
+  b.box(cx, 3.9, cz, .9, 4.4, .9, '#cfc0ac'); b.box(cx, 8.3, cz, 1.2, .26, 1.2, '#b3a38f');
   if (owned && smoke) smoke.push(b.world(cx, 8.6, cz));
-  /* flower garden */
+  /* garden: a low picket fence, a path, two flower beds and two round bushes */
   for (let i = -4; i <= 4; i++) { if (Math.abs(i) < 1) continue; b.box(i * .85, -.9, gz, .18, 1.9, .12, '#f5f0e4'); }
   b.box(-2.6, .75, gz, 4.6, .1, .1, '#f5f0e4'); b.box(2.6, .75, gz, 4.6, .1, .1, '#f5f0e4');
   b.box(0, -.05, zf + 2.75, 1.3, .15, 2.7, '#d9cfb4');
-  for (let i = 0; i < 9; i++) { const fx = (r() - .5) * 8.2, fz = zf + 1.6 + r() * 2.3; if (Math.abs(fx) < 1.1) continue; b.box(fx, -.5, fz, .42, .8 + r() * .4, .42, FL[(r() * 5) | 0]); }
-  b.cone(-3.5, -.4, zf + 1.4, .8, 1.8, 6, '#4f9a4a'); b.cone(3.5, -.4, zf + 1.4, .8, 1.8, 6, '#5ea244');
+  flowerBed(b, -2.75, -.5, zf + 2.85, 3.0, 2.0, 9, C.i * 7 + 1); flowerBed(b, 2.75, -.5, zf + 2.85, 3.0, 2.0, 9, C.i * 7 + 2);
+  b.cone(-3.7, -.4, zf + 1.3, .8, 1.8, 6, '#4f9a4a'); b.cone(3.7, -.4, zf + 1.3, .8, 1.8, 6, '#5ea244');
   /* for sale: padlock on the door and a small gold sign */
   if (!owned) {
     b.box(0, 1.15, zf + .14, .75, .6, .22, '#3a3f47'); b.box(0, 1.3, zf + .27, .18, .22, .06, '#e9a93a');
