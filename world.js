@@ -108,7 +108,7 @@ export function roadDist(x, z) {
 export const plazas = []; /* {x,z,r} */
 
 /* ---------- layout ---------- */
-export const L = { houses: [], pent: [], shops: [], castles: [], church: null, plaza: null, pier: null, yachtPier: null, bridge: null, towers: [] };
+export const L = { houses: [], pent: [], shops: [], cot: [], castles: [], church: null, plaza: null, pier: null, yachtPier: null, bridge: null, towers: [] };
 
 export function layout() {
   const z0 = sz(0);
@@ -209,6 +209,13 @@ export function layout() {
     addPad(c.x, c.z, 4.6, h, 4.5);
     L.houses.push({ idx: i, x: c.x, z: c.z, y: h, yaw: c.yaw, w: 9, d: 8, hgt: 14 });
   });
+  /* lakeview cottages: 4 terraced rows on the north shore slope, all facing the lake */
+  const CROW = [-198, -216, -234, -252];
+  for (let r = 0; r < 4; r++) for (let k = 0; k < 10; k++) {
+    const x = (k - 4.5) * 19 + (r % 2 ? 4.5 : -4.5), z = CROW[r] + Math.sin(k * 1.7 + r) * 1.4, h = baseH(x, z);
+    addPad(x, z, 7, h, 6);
+    L.cot.push({ i: L.cot.length, x, z, y: h, yaw: (((k * 7 + r * 3) % 5) - 2) * .03, name: 'Cottage ' + (L.cot.length + 1), k: 'cot', w: 7, d: 6, hgt: 9 });
+  }
   return L;
 }
 const KIND = ['Bakery', 'Nail salon', 'Hair salon', 'Cafe', 'Flower shop', 'Barber'];
