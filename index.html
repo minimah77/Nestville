@@ -50,7 +50,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#8dbad6;color:var(--in
 #sheet.open{transform:none}
 #sheet .grab{width:42px;height:5px;border-radius:3px;background:rgba(16,48,60,.25);margin:2px auto 10px}
 .tabs{display:flex;gap:6px;background:rgba(255,255,255,.45);padding:4px;border-radius:17px;margin-bottom:10px}
-.tabs button{flex:1;border:0;background:transparent;border-radius:13px;height:38px;font:700 13.5px var(--fb);color:var(--mute);cursor:pointer}
+.tabs button{flex:1;border:0;background:transparent;border-radius:13px;height:38px;font:700 12px var(--fb);color:var(--mute);cursor:pointer}
 .tabs button.on{background:#fff;color:var(--ink);box-shadow:0 2px 8px rgba(16,56,70,.15)}
 #pane{overflow:auto;-webkit-overflow-scrolling:touch}
 #pane h4{margin:4px 0 6px;font:600 19px var(--fd)}
@@ -84,12 +84,13 @@ html,body{margin:0;height:100%;overflow:hidden;background:#8dbad6;color:var(--in
 <div id="views" class="gl">
  <button class="ib on" id="vHome" data-v="orbit" aria-label="Village overview" title="Village overview"><svg viewBox="0 0 24 24"><path d="M3 20h18M5 20v-8l5-4 5 4v8M15 20v-5l3-2.5 3 2.5v5"/></svg></button>
  <button class="ib" id="vWalk" data-v="walk" aria-label="Canal walk (tap again for the next canal)" title="Canal walk"><svg viewBox="0 0 24 24"><path d="M3 9c2-2 4-2 6 0s4 2 6 0 4-2 6 0M3 15c2-2 4-2 6 0s4 2 6 0 4-2 6 0"/></svg></button>
+ <button class="ib" id="vCot" aria-label="Cottages on the north shore" title="Cottages"><svg viewBox="0 0 24 24"><path d="M3 20h18M5 20v-7l5-4 5 4v7M8 20v-3h4v3"/><circle cx="18" cy="14" r="1.8"/><path d="M18 16v4"/></svg></button>
  <button class="ib" id="vPh" data-v="ph" aria-label="Penthouse view (tap again for the next penthouse)" title="Penthouse view"><svg viewBox="0 0 24 24"><rect x="7" y="3" width="10" height="18" rx="1.5"/><path d="M10.5 7h3M10.5 11h3M10.5 15h3"/></svg></button>
 </div>
 <div id="card" class="gl gl2"></div>
 <div id="bar" class="gl"><input id="q" placeholder="Find your resident: @yourname" autocapitalize="none" autocomplete="off" enterkeyhint="search" aria-label="Find a resident"><button class="pb" id="bFind">Find</button></div>
 <div id="sheet" class="gl gl2" role="dialog" aria-label="Menu"><div class="grab"></div>
- <div class="tabs"><button data-t="claim" class="on">My house</button><button data-t="ph">Penthouses</button><button data-t="shops">Shops</button></div><div id="pane"></div></div>
+ <div class="tabs"><button data-t="claim" class="on">My house</button><button data-t="ph">Penthouses</button><button data-t="shops">Shops</button><button data-t="cot">Cottages</button></div><div id="pane"></div></div>
 <div id="toast" class="gl gl2" role="status"></div>
 <div id="load"><div>Nestville</div><div class="dots"><i></i><i></i><i></i></div><small id="loadmsg">Building your village</small></div>
 <script type="module" src="town.js"></script>
