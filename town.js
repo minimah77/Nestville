@@ -9,9 +9,9 @@ const $ = id => document.getElementById(id);
 const S = load();
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const QUAL = {
-  low: { step: 6.5, pr: 1, shadow: 0, trees: 500, fx: 0, refl: 0, label: 'Low' },
-  medium: { step: 4.2, pr: 1.5, shadow: 2048, trees: 1500, fx: 1, refl: 0, label: 'Medium' },
-  high: { step: 2.9, pr: 2, shadow: 4096, trees: 3000, fx: 1, refl: 1, label: 'High' }
+  low: { step: 6.5, pr: 1, shadow: 0, trees: 250, fx: 0, refl: 0, label: 'Low' },
+  medium: { step: 4.2, pr: 1.5, shadow: 2048, trees: 650, fx: 1, refl: 0, label: 'Medium' },
+  high: { step: 2.9, pr: 2, shadow: 4096, trees: 1300, fx: 1, refl: 1, label: 'High' }
 };
 let gfx = 'medium';
 try { const g = localStorage.getItem('nv-gfx'); if (QUAL[g]) gfx = g; } catch (e) { }
@@ -75,7 +75,7 @@ function buildTerrain(step) {
       o.copy(C.g1).lerp(C.g2, n);
       o.lerp(C.sand, 1 - sm(.3, 1.9, h));
       o.lerp(C.fo, sm(14, 60, h) * (.4 + n2 * .6));
-      o.lerp(C.rock, Math.max(sm(.55, .9, sl), sm(66, 105, h + n * 30)) * (h > 4 ? 1 : 0));
+      o.lerp(C.rock, Math.max(sm(.55, .9, sl), sm(66, 105, h + n * 30)) * sm(12, 28, h)); /* grey rock only high up: no dark patches on the village slopes */
       o.lerp(C.rock2, sm(.45, .8, n) * sm(60, 110, h) * .5);
       o.lerp(C.snow, sm(78, 106, h + (n - .5) * 30) * (sl < .9 ? 1 : .55));
       if (x > TOWN.x0 && x < TOWN.x1 && z > TOWN.z0 && z < TOWN.z1) {
@@ -314,10 +314,10 @@ function plantTrees(n) {
     const x = -330 + r() * 660, z = -330 + r() * 710, h = H(x, z);
     if (h < 1.7 || h > 95) continue;
     if (x > TOWN.x0 && x < TOWN.x1 && z > TOWN.z0 && z < 150) continue; /* the village: trees only along the canals */
-    if (Math.abs(x) < 108 && z > -270 && z < -186) continue; /* the cottage district stays open */
+    if (Math.abs(x) < 125 && z > -285 && z < -165) continue; /* the cottage district and its shore stay open */
     const f = fbm(x * .022 + 7, z * .022 + 2, 3);
     if (f < .44 && h < 60 && r() > .2) continue;
-    if (h < 9 && r() > .22) continue; /* low ground stays mostly open: a few scattered trees on the meadow, the forest is on the mountains */
+    if (h < 9 && r() > .1) continue; /* low ground stays mostly open: a few scattered trees on the meadow, the forest is on the mountains */
     if (canalDist(x, z) < 4.5) continue;
     if (z > 135 && Math.abs(x - xr(z)) < 9) continue;
     let bad = false; for (const e of ex) { if (Math.hypot(x - e[0], z - e[1]) < e[2]) { bad = true; break; } } if (bad) continue;
