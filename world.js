@@ -12,8 +12,9 @@ export function fbm(x, y, o = 4) {
   return s / t;
 }
 
-export const B = { x0: -340, x1: 340, z0: -340, z1: 300 }; /* world bounds */
-export const TOWN = { x0: -150, x1: 150, z0: -80, z1: 175 }; /* high detail terrain rect */
+export const B = { x0: -470, x1: 470, z0: -420, z1: 440 }; /* world bounds */
+export const TOWN = { x0: -175, x1: 175, z0: -80, z1: 195 }; /* town rect: canals, quays, colour detail */
+export const WL = .3; /* water level of lake and canals */
 const LAKE = { cx: 0, cz: -88, rx: 175, rz: 98 };
 export const lakeE = (x, z) => Math.hypot((x - LAKE.cx) / LAKE.rx, (z - LAKE.cz) / LAKE.rz) + (fbm(x * .017 + 5, z * .017 + 9, 3) - .5) * .2;
 
@@ -21,14 +22,16 @@ export function baseH(x, z) {
   const e = lakeE(x, z);
   let h = -8 + sm(.86, 1.0, e) * 8.8;
   const land = sm(.97, 1.1, e);
-  const south = Math.max(0, z - 4) * .2 + Math.max(0, z - 105) * .18;
-  h += land * (south + (fbm(x * .02 + 1, z * .02 + 4, 3) - .5) * 9 * sm(0, 60, z) + (fbm(x * .05, z * .05, 2) - .5) * 2.5);
-  let mm = Math.max(sm(-140, -230, z), sm(135, 235, Math.abs(x)), sm(150, 235, z)) * sm(1.0, 1.35, e);
+  const hills = sm(150, 235, z); /* the flat town plateau ends here, hills begin */
+  const south = 2.1 + Math.max(0, z - 150) * .16 + Math.max(0, z - 235) * .14;
+  h += land * (south + (fbm(x * .02 + 1, z * .02 + 4, 3) - .5) * (1.6 + 7 * hills) * sm(0, 60, z) + (fbm(x * .05, z * .05, 2) - .5) * (.9 + 1.6 * hills));
+  /* mountains: lower than before and much farther from the village */
+  const mm = Math.max(sm(-210, -330, z), sm(205, 330, Math.abs(x)), sm(235, 350, z)) * sm(1.0, 1.35, e);
   if (mm > 0) {
     const r = 1 - Math.abs(2 * fbm(x * .0075 + 11, z * .0075 + 5, 5) - 1);
-    h += mm * (22 + r * r * 150 * (.55 + .45 * fbm(x * .004 + 30, z * .004 + 2, 2)) + fbm(x * .03, z * .03, 3) * 24);
+    h += mm * (16 + r * r * 62 * (.55 + .45 * fbm(x * .004 + 30, z * .004 + 2, 2)) + fbm(x * .03, z * .03, 3) * 12);
   }
-  h += sm(270, 330, Math.max(Math.abs(x), Math.abs(z))) * 90;
+  h += sm(400, 460, Math.max(Math.abs(x), Math.abs(z))) * 100;
   return h;
 }
 export function shoreZ(x) {
@@ -43,8 +46,8 @@ export function addPad(x, z, r, h, blend = 5) { pads.push({ x, z, r, h: h === un
 
 /* river */
 export const xr = z => 12 + 9 * Math.sin(z * .05 + .9);
-export const RIVER_Z0 = 2, RIVER_Z1 = 210;
-const riverSurf = z => Math.max(baseH(xr(z), z) - .5, .1);
+export const RIVER_Z0 = 140, RIVER_Z1 = 206; /* the river is the main canal in town; this is the wild stretch upstream */
+const riverSurf = z => mix(WL, Math.max(baseH(xr(z), z) - .5, WL), sm(138, 185, z));
 const RS = []; for (let z = 0; z <= 260; z += 2) RS.push(riverSurf(z));
 export const Rs = z => { const t = Math.min(Math.max(z, 0), 258) / 2, i = Math.floor(t); return mix(RS[i], RS[Math.min(i + 1, 129)], t - i); };
 
@@ -56,14 +59,36 @@ export function H(x, z) {
     const w = 1 - sm(p.r, R, Math.sqrt(d2));
     h = mix(h, p.h, w);
   }
-  if (z > 0) {
+  if (z > 135) {
     const d = Math.abs(x - xr(z));
     if (d < 7) h = mix(h, Math.min(h, Rs(z) - 1.3), 1 - sm(3.2, 6.8, d));
+  }
+  if (x > TOWN.x0 - 10 && x < TOWN.x1 + 10 && z > TOWN.z0 - 20 && z < TOWN.z1) {
+    const cd = canalDist(x, z);
+    if (cd < 2) h = mix(h, Math.min(h, -1.7), 1 - sm(0, 2, cd));
   }
   return h;
 }
 
-/* road mask */
+/* canals: the streets of Nestville. each is {pts, w(half width)} */
+export const canals = [];
+export function addCanal(pts, w) {
+  let bx0 = 1e9, bx1 = -1e9, bz0 = 1e9, bz1 = -1e9;
+  pts.forEach(p => { bx0 = Math.min(bx0, p[0]); bx1 = Math.max(bx1, p[0]); bz0 = Math.min(bz0, p[1]); bz1 = Math.max(bz1, p[1]); });
+  const m = w + 6; canals.push({ pts, w, bx0: bx0 - m, bx1: bx1 + m, bz0: bz0 - m, bz1: bz1 + m });
+}
+export function canalDist(x, z) { /* distance to the nearest canal edge (negative inside the water) */
+  let best = 99;
+  for (const c of canals) {
+    if (x < c.bx0 || x > c.bx1 || z < c.bz0 || z > c.bz1) continue;
+    const d = polyDist(c.pts, x, z) - c.w; if (d < best) best = d;
+  }
+  return best;
+}
+const PITCH = 18.5, NROWS = 6;
+export const laneZ = (r, x) => sz(x) + 16 + r * PITCH + 3 * Math.sin(x * .045 + r * .3);
+
+/* road mask (only the lakeside promenade is paved now) */
 export const roads = []; /* each: array of [x,z] */
 export function polyDist(pl, x, z) {
   let best = 99;
@@ -83,20 +108,13 @@ export function roadDist(x, z) {
 export const plazas = []; /* {x,z,r} */
 
 /* ---------- layout ---------- */
-export const L = { houses: [], pent: [], shops: [], castles: [], church: null, plaza: null, pier: null, bridge: null, towers: [] };
+export const L = { houses: [], pent: [], shops: [], castles: [], church: null, plaza: null, pier: null, yachtPier: null, bridge: null, towers: [] };
 
 export function layout() {
   const z0 = sz(0);
-  /* main street */
-  const main = [[0, z0 + 3], [9, z0 + 18], [-4, z0 + 36], [7, z0 + 55], [-3, z0 + 74], [3, z0 + 92], [0, z0 + 112]];
-  const smooth = [];
-  for (let i = 0; i < main.length - 1; i++) for (let k = 0; k < 8; k++) {
-    const t = k / 8, a = main[Math.max(0, i - 1)], b = main[i], c = main[i + 1], d = main[Math.min(main.length - 1, i + 2)];
-    const cr = (p0, p1, p2, p3) => .5 * ((2 * p1) + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t + (-p0 + 3 * p1 - 3 * p2 + p3) * t * t * t);
-    smooth.push([cr(a[0], b[0], c[0], d[0]), cr(a[1], b[1], c[1], d[1])]);
-  }
-  smooth.push(main[main.length - 1]);
-  roads.push(smooth);
+  /* the river is the main canal through the village */
+  const rv = []; for (let z = z0 + 1; z <= 142; z += 4) rv.push([xr(z), z]);
+  addCanal(rv, 3.3);
 
   /* church + plaza */
   const cx = -16, cz = z0 + 41;
@@ -105,13 +123,12 @@ export function layout() {
   plazas.push(L.plaza);
   addPad(cx, cz + 1, 11, undefined, 6);
   addPad(L.plaza.x, L.plaza.z, 9, undefined, 5);
-  roads.push([[cx + 8, cz - 15], [4, z0 + 36]]);
 
   /* castles */
   const lc = { x: -68, z: z0 - 12 }; /* lakeside peninsula castle */
   addPad(lc.x, lc.z, 14, 3.6, 12);
   L.castles.push({ id: 'lake', x: lc.x, z: lc.z, y: 3.6, name: 'Lakeside castle', k: 'castle', w: 26, d: 22, hgt: 44, r: 20, yaw: 0 });
-  const ex = 118, ez = 46, eh = baseH(ex, ez) + 5;
+  const ex = 180, ez = 64, eh = baseH(ex, ez) + 8;
   addPad(ex, ez, 18, eh, 14);
   L.castles.push({ id: 'east', x: ex, z: ez, y: eh, name: 'Hilltop citadel', k: 'castle', w: 30, d: 30, hgt: 50, r: 24, yaw: 0 });
   addPad(50, -62, 9, 2.7, 10);
@@ -128,46 +145,54 @@ export function layout() {
   }
   /* promenade strip */
   roads.push(Array.from({ length: 14 }, (_, i) => { const x = -52 + i * 8; return [x, sz(x) + 2.2]; }));
-  /* pier */
+  /* piers: the village pier and the yacht club pier */
   const px = -6; L.pier = { x: px, z0: sz(px) + 1, len: 24 };
+  L.yachtPier = { x: 88, z0: sz(88) + 1, len: 34 };
 
-  /* penthouses: two groups either side of the river */
-  const zr = z0 + 101, xrr = xr(zr);
+  /* E-W canals. they stop short of the church square so the church keeps its ground */
+  for (let r = 0; r <= NROWS; r++) {
+    let cur = []; const segs = [];
+    for (let x = -166; x <= 166; x += 8) {
+      const z = laneZ(r, x), skip = Math.abs(x - cx) < 20 && z > cz - 27 && z < cz + 13;
+      if (skip) { if (cur.length > 1) segs.push(cur); cur = []; } else cur.push([x, z]);
+    }
+    if (cur.length > 1) segs.push(cur);
+    segs.forEach(p => addCanal(p, 2.3));
+  }
+
+  /* penthouses: two groups either side of the river, facing the last canal */
+  const zr = z0 + 16 + NROWS * PITCH + 9.8, xrr = xr(zr);
   const xs = [];
   for (let k = 0; k < 5; k++) { xs.push(xrr - 22 - k * 17); xs.push(xrr + 22 + k * 17); }
   xs.sort((a, b) => a - b);
   xs.forEach((x, i) => {
-    const z = zr + 5 * Math.pow((x - xrr) / 85, 2) + (((i * 37) % 5) - 2) * 1.2;
+    const z = laneZ(NROWS, x) + 9.8 + (((i * 37) % 5) - 2) * .8;
     const h = baseH(x, z) + .4;
     addPad(x, z, 8.5, h, 6);
     L.pent.push({ i, x, z, y: h, yaw: Math.PI + ((i % 3) - 1) * .06, name: 'Penthouse ' + (i + 1), k: 'ph', w: 11, d: 9, hgt: 34 });
   });
-  roads.push(xs.map(x => [x, zr + 5 * Math.pow((x - xrr) / 85, 2) - 9]));
 
-  /* lanes + houses */
+  /* houses: rows facing the canals */
   const cands = [];
-  const lanePts = [];
-  for (let r = 0; r < 5; r++) {
-    const lane = x => sz(x) + 16 + r * 16.5 + 3 * Math.sin(x * .045 + r * 1.9);
-    const pts = []; for (let x = -100; x <= 100; x += 8) pts.push([x, lane(x)]);
-    lanePts.push(pts); roads.push(pts);
+  for (let r = 0; r <= NROWS; r++) {
     const rnd = (a) => { const s = Math.sin(a * 91.7 + r * 13.1) * 9137.3; return s - Math.floor(s); };
-    for (let k = 0, x = -94; x < 96; k++, x += 11.2) {
-      const xx = x + (rnd(k) - .5) * 2.4, zz = lane(xx) + 6.8 + (rnd(k + 40) - .5) * 1.6;
-      cands.push({ x: xx, z: zz, yaw: Math.PI + (rnd(k + 90) - .5) * .16, row: r });
+    for (let k = 0, x = -160; x < 162; k++, x += 11.2) {
+      const xx = x + (rnd(k) - .5) * 2.4, zz = laneZ(r, xx) + 9.6 + (rnd(k + 40) - .5) * 1.2;
+      cands.push({ x: xx, z: zz, yaw: Math.PI + (rnd(k + 90) - .5) * .14, row: r });
     }
   }
   const ok = c => {
-    if (Math.abs(c.x - xr(c.z)) < 12) return false;
+    if (Math.abs(c.x - xr(c.z)) < 10.5) return false;
     if (Math.hypot(c.x - cx, c.z - cz) < 19) return false;
     if (Math.hypot(c.x - L.plaza.x, c.z - L.plaza.z) < 14) return false;
     if (Math.hypot(c.x - lc.x, c.z - lc.z) < 26) return false;
-    if (polyDist(roads[0], c.x, c.z) < 7) return false;
-    if (baseH(c.x, c.z) < 1.5) return false;
-    if (c.z > zr - 12 && c.row > 3) return false;
+    if (baseH(c.x, c.z) < 1.2) return false;
+    if (canalDist(c.x, c.z) < 5) return false;
+    for (const p of L.pent) if (Math.hypot(c.x - p.x, c.z - p.z) < 17) return false;
+    for (const cs of L.castles) if (Math.hypot(c.x - cs.x, c.z - cs.z) < cs.r + 10) return false;
     return true;
   };
-  const good = cands.filter(ok).sort((a, b) => Math.hypot(a.x - 4, (a.z - (z0 + 40)) * 1.4) - Math.hypot(b.x - 4, (b.z - (z0 + 40)) * 1.4)).slice(0, 72);
+  const good = cands.filter(ok).sort((a, b) => Math.hypot(a.x, (a.z - (z0 + 56)) * 1.4) - Math.hypot(b.x, (b.z - (z0 + 56)) * 1.4)).slice(0, 120);
   good.forEach((c, i) => {
     const h = baseH(c.x, c.z);
     addPad(c.x, c.z, 4.6, h, 4.5);
