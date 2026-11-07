@@ -317,7 +317,7 @@ function plantTrees(n) {
     if (Math.abs(x) < 108 && z > -270 && z < -186) continue; /* the cottage district stays open */
     const f = fbm(x * .022 + 7, z * .022 + 2, 3);
     if (f < .44 && h < 60 && r() > .2) continue;
-    if (h < 9 && r() > .12) continue; /* low ground stays mostly open, the forest is on the mountains */
+    if (h < 9 && r() > .22) continue; /* low ground stays mostly open: a few scattered trees on the meadow, the forest is on the mountains */
     if (canalDist(x, z) < 4.5) continue;
     if (z > 135 && Math.abs(x - xr(z)) < 9) continue;
     let bad = false; for (const e of ex) { if (Math.hypot(x - e[0], z - e[1]) < e[2]) { bad = true; break; } } if (bad) continue;
