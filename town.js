@@ -332,7 +332,9 @@ function updateYachts(t) { yachts.forEach(y => { const c = y.c; y.m.position.set
 /* ---------- camera ---------- */
 const HOME = { tx: 0, ty: 8, tz: 66, yaw: Math.PI + .25, pitch: .32, dist: 255 };
 if (innerWidth / innerHeight < .8) Object.assign(HOME, { tz: 84, pitch: .36, dist: 275 });
-const cam = { ...HOME }, goal = { ...HOME };
+const cam = { ...HOME, zoom: 1 }, goal = { ...HOME, zoom: 1 };
+let BASE_FOV = 46;
+const view = { mode: 'orbit', minY: 4, floor: 3, row: 3, ri: 0, wx: -96, pi: 4 };
 let smooth = 8, tourOn = false, tourI = 0, tourT = 0;
 function angTo(from, to) { let d = (to - from) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return from + d; }
 function fly(o) {
@@ -343,14 +345,16 @@ function fly(o) {
 }
 function updateCam(dt) {
   const k = 1 - Math.exp(-dt * smooth);
-  for (const p of ['tx', 'ty', 'tz', 'yaw', 'pitch', 'dist']) cam[p] += (goal[p] - cam[p]) * k;
+  for (const p of ['tx', 'ty', 'tz', 'yaw', 'pitch', 'dist', 'zoom']) cam[p] += (goal[p] - cam[p]) * k;
   const cp = Math.cos(cam.pitch);
   let x = cam.tx + Math.sin(cam.yaw) * cp * cam.dist, z = cam.tz + Math.cos(cam.yaw) * cp * cam.dist, y = cam.ty + Math.sin(cam.pitch) * cam.dist;
-  y = Math.max(y, H(x, z) + 4, 3);
+  y = Math.min(Math.max(y, H(x, z) + view.minY, view.floor), 330); /* never up into the clouds (they start near 470) */
+  const fv = BASE_FOV * cam.zoom; if (Math.abs(camera.fov - fv) > .01) { camera.fov = fv; camera.updateProjectionMatrix(); }
   camera.position.set(x, y, z); camera.lookAt(cam.tx, cam.ty, cam.tz);
   sky.position.copy(camera.position);
 }
 function pan(dx, dy) {
+  if (view.mode !== 'orbit') return;
   const s = goal.dist * .0016, fx_ = -Math.sin(goal.yaw), fz = -Math.cos(goal.yaw), rx = Math.cos(goal.yaw), rz = -Math.sin(goal.yaw);
   goal.tx = clamp(goal.tx + fx_ * dy * s - rx * dx * s, TOWN.x0 - 60, TOWN.x1 + 60); goal.tz = clamp(goal.tz + fz * dy * s - rz * dx * s, B.z0 + 140, B.z1 - 90);
   goal.ty = Math.max(2, H(goal.tx, goal.tz) + 3);
@@ -368,11 +372,16 @@ cv.addEventListener('pointermove', e => {
   const dx = e.clientX - p.x, dy = e.clientY - p.y; p.x = e.clientX; p.y = e.clientY;
   if (ptr.size === 1 && down) {
     down.moved += Math.abs(dx) + Math.abs(dy);
-    if (down.btn === 2 || e.shiftKey || e.ctrlKey) pan(dx, dy); else { goal.yaw -= dx * .006; goal.pitch = clamp(goal.pitch + dy * .005, .1, 1.45); }
+    if (view.mode !== 'orbit') { goal.yaw += dx * .005; goal.pitch = clamp(goal.pitch - dy * .004, -.5, .9); }
+    else if (down.btn === 2 || e.shiftKey || e.ctrlKey) pan(dx, dy); else { goal.yaw -= dx * .006; goal.pitch = clamp(goal.pitch + dy * .005, .1, 1.45); }
   } else if (ptr.size === 2) {
     const [a, b] = [...ptr.values()], d = Math.hypot(a.x - b.x, a.y - b.y), mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-    if (lastPinch > 0) goal.dist = clamp(goal.dist * lastPinch / d, 24, 400);
-    if (lastMid) pan(mid.x - lastMid.x, mid.y - lastMid.y);
+    if (view.mode === 'walk') { if (lastPinch > 0) stepWalk((d - lastPinch) * .2); }
+    else if (view.mode === 'ph') { if (lastPinch > 0) goal.zoom = clamp(goal.zoom * lastPinch / d, .45, 1.15); }
+    else {
+      if (lastPinch > 0) goal.dist = clamp(goal.dist * lastPinch / d, 24, 400);
+      if (lastMid) pan(mid.x - lastMid.x, mid.y - lastMid.y);
+    }
     lastPinch = d; lastMid = mid;
   }
 });
@@ -383,11 +392,21 @@ function endPtr(e) {
 }
 cv.addEventListener('pointerup', endPtr); cv.addEventListener('pointercancel', endPtr);
 cv.addEventListener('contextmenu', e => e.preventDefault());
-cv.addEventListener('wheel', e => { e.preventDefault(); stopTour(); goal.dist = clamp(goal.dist * Math.exp(e.deltaY * .0012), 24, 400); }, { passive: false });
+cv.addEventListener('wheel', e => {
+  e.preventDefault(); stopTour();
+  if (view.mode === 'walk') stepWalk(-e.deltaY * .04);
+  else if (view.mode === 'ph') goal.zoom = clamp(goal.zoom * Math.exp(e.deltaY * .001), .45, 1.15);
+  else goal.dist = clamp(goal.dist * Math.exp(e.deltaY * .0012), 24, 400);
+}, { passive: false });
 const keys = {};
 addEventListener('keydown', e => { if (e.target.tagName === 'INPUT') return; keys[e.key.toLowerCase()] = 1; stopTour(); });
 addEventListener('keyup', e => { keys[e.key.toLowerCase()] = 0; });
 function keyMove(dt) {
+  if (view.mode !== 'orbit') {
+    if (keys.arrowleft || keys.a || keys.q) goal.yaw += dt * 1.4; if (keys.arrowright || keys.d || keys.e) goal.yaw -= dt * 1.4;
+    if (view.mode === 'walk') { if (keys.arrowup || keys.w) stepWalk(dt * 16); if (keys.arrowdown || keys.s) stepWalk(-dt * 16); }
+    return;
+  }
   const s = 380 * dt; let dx = 0, dy = 0;
   if (keys.arrowleft || keys.a) dx += s; if (keys.arrowright || keys.d) dx -= s; if (keys.arrowup || keys.w) dy += s; if (keys.arrowdown || keys.s) dy -= s;
   if (dx || dy) pan(dx, dy); if (keys.q) goal.yaw += dt * 1.2; if (keys.e) goal.yaw -= dt * 1.2;
@@ -405,14 +424,15 @@ function pick(cx, cy) {
   if (!hit) { select(null); return; }
   let best = null, bd = 1e9;
   for (const e of ents) { const d = Math.hypot(hit.point.x - e.x, hit.point.z - e.z) - e.r * (e.kind === 'house' ? 1 : 1.1); if (d < 0 && d < bd) { bd = d; best = e; } }
-  select(best);
+  select(best, view.mode !== 'orbit');
 }
-function select(e) {
+function select(e, keep) {
   sel = e; const card = $('card');
   if (!e) { card.style.display = 'none'; ring.visible = false; return; }
+  if (!keep && view.mode !== 'orbit') leaveFP();
   card.innerHTML = cardHTML(e); card.style.display = 'block';
   ring.visible = true; ring.scale.setScalar(e.r * 1.15); ring.position.set(e.x, e.y + .7, e.z);
-  fly({ x: e.x, z: e.z, dist: Math.min(goal.dist, e.kind === 'house' ? 62 : e.kind === 'castle' || e.kind === 'yacht' ? 120 : 85) });
+  if (!keep) fly({ x: e.x, z: e.z, dist: Math.min(goal.dist, e.kind === 'house' ? 62 : e.kind === 'castle' || e.kind === 'yacht' ? 120 : 85) });
 }
 function cardHTML(e) {
   const x = '<button class="x" data-a="close" aria-label="Close">×</button>';
@@ -488,7 +508,41 @@ function findResident(v) {
 $('bFind').addEventListener('click', () => findResident($('q').value));
 $('q').addEventListener('keydown', e => { if (e.key === 'Enter') { findResident(e.target.value); e.target.blur(); } });
 $('bMenu').addEventListener('click', () => sheet.classList.contains('open') ? closeSheet() : openSheet());
-$('bHome').addEventListener('click', () => { stopTour(); select(null); fly({ x: HOME.tx, z: HOME.tz, y: HOME.ty, yaw: HOME.yaw, pitch: HOME.pitch, dist: HOME.dist }); });
+
+/* ---------- three views: village, canal walk, penthouse ---------- */
+const ROWS = [3, 4, 5, 0]; /* canals you can walk along */
+let vt = 0;
+function syncViews() { document.querySelectorAll('#views [data-v]').forEach(b => b.classList.toggle('on', b.dataset.v === view.mode)); }
+function walkTo(x) { /* stand on the quay beside the canal, at x */
+  if (x < -158 || x > 158) return false;
+  const lz = laneZ(view.row, x), cx = L.church.x, cz = L.church.z;
+  if (Math.abs(x - cx) < 23 && lz > cz - 29 && lz < cz + 15) return false; /* the church square */
+  const z = lz + 4.4;
+  view.wx = x; goal.tx = x; goal.tz = z; goal.ty = Math.max(H(x, z), WL) + 1.9;
+  return true;
+}
+function stepWalk(d) { walkTo(view.wx + (Math.sin(goal.yaw) > 0 ? -d : d)); }
+function leaveFP() { view.mode = 'orbit'; view.minY = 4; view.floor = 3; goal.zoom = 1; goal.dist = Math.max(goal.dist, 110); goal.pitch = .4; syncViews(); }
+function setView(m, next) {
+  stopTour(); select(null); closeSheet();
+  if (m === 'walk') {
+    if (next && view.mode === 'walk') view.ri = (view.ri + 1) % ROWS.length;
+    view.row = ROWS[view.ri]; view.mode = 'walk'; view.minY = 1.6; view.floor = .8; goal.zoom = 1;
+    walkTo(-96); goal.dist = .2; goal.pitch = .05; goal.yaw = angTo(cam.yaw, -Math.PI / 2);
+  } else if (m === 'ph') {
+    if (next && view.mode === 'ph') view.pi = (view.pi + 1) % L.pent.length;
+    const p = L.pent[view.pi]; view.mode = 'ph'; view.minY = 0; view.floor = 0; goal.zoom = 1;
+    goal.tx = p.x + 3.6 * Math.sin(p.yaw); goal.tz = p.z + 3.6 * Math.cos(p.yaw); goal.ty = p.y + 49.8;
+    goal.dist = .2; goal.pitch = .13; goal.yaw = angTo(cam.yaw, 0);
+  } else {
+    view.mode = 'orbit'; view.minY = 4; view.floor = 3; goal.zoom = 1;
+    fly({ x: HOME.tx, z: HOME.tz, y: HOME.ty, yaw: HOME.yaw, pitch: HOME.pitch, dist: HOME.dist });
+  }
+  syncViews(); smooth = 3; clearTimeout(vt); vt = setTimeout(() => { if (!tourOn) smooth = 8; }, 2000);
+}
+$('vHome').addEventListener('click', () => setView('orbit'));
+$('vWalk').addEventListener('click', () => setView('walk', true));
+$('vPh').addEventListener('click', () => setView('ph', true));
 
 /* ---------- tour ---------- */
 const TOUR = () => [
@@ -504,6 +558,7 @@ const TOUR = () => [
 ];
 $('bTour').addEventListener('click', () => {
   if (tourOn) { stopTour(); return; }
+  if (view.mode !== 'orbit') setView('orbit');
   tourOn = true; tourI = 0; tourT = 0; smooth = 1.5; select(null); closeSheet(); $('bTour').classList.add('on');
   const t = TOUR()[0]; fly(t);
 });
@@ -534,7 +589,7 @@ async function applyGfx(first) {
 $('bGfx').addEventListener('click', () => { gfx = gfx === 'low' ? 'medium' : gfx === 'medium' ? 'high' : 'low'; applyGfx(false); toast('Graphics: ' + QUAL[gfx].label); });
 
 /* ---------- frame loop ---------- */
-function resize() { const w = innerWidth, h = innerHeight; renderer.setSize(w, h); camera.aspect = w / h; camera.fov = w / h < .75 ? 58 : 46; camera.updateProjectionMatrix(); }
+function resize() { const w = innerWidth, h = innerHeight; renderer.setSize(w, h); camera.aspect = w / h; BASE_FOV = w / h < .75 ? 58 : 46; camera.fov = BASE_FOV * cam.zoom; camera.updateProjectionMatrix(); }
 addEventListener('resize', resize);
 const v3 = new THREE.Vector3(); let last = performance.now(), T = 0, frame = 0;
 function frameLoop(now) {
@@ -564,7 +619,7 @@ function frameLoop(now) {
       cands.push([e, d, v3.x, v3.y]);
     }
     cands.sort((a, b) => a[1] - b[1]); let hs = 0;
-    cands.forEach(c => { const e = c[0]; if (e.kind === 'house' && ++hs > 18) { if (e.shown) { e.el.style.display = 'none'; e.shown = false; } return; }
+    cands.forEach(c => { const e = c[0]; if (e.kind === 'house' && ++hs > (view.mode === 'walk' ? 5 : 18)) { if (e.shown) { e.el.style.display = 'none'; e.shown = false; } return; }
       if (!e.shown) { e.el.style.display = ''; e.shown = true; }
       e.el.style.transform = 'translate(' + ((c[2] * .5 + .5) * innerWidth) + 'px,' + ((-c[3] * .5 + .5) * innerHeight) + 'px) translate(-50%,-100%)';
       e.el.style.opacity = clamp((e.vis - c[1]) / (e.vis * .25), 0, 1); });
@@ -578,4 +633,4 @@ applyGfx(true).then(() => {
   const m = location.hash.match(/^#@?([\w.]+)/); if (m) setTimeout(() => findResident(m[1]), 600);
 });
 requestAnimationFrame(frameLoop);
-window.__nv = { S, ents, select, fly, cam, goal, renderer, scene, camera, applyGfx: g => { gfx = g; return applyGfx(false); } };
+window.__nv = { S, ents, select, fly, cam, goal, view, setView, renderer, scene, camera, applyGfx: g => { gfx = g; return applyGfx(false); } };
