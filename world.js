@@ -203,7 +203,9 @@ export function layout() {
     for (const cs of L.castles) if (Math.hypot(c.x - cs.x, c.z - cs.z) < cs.r + 10) return false;
     return true;
   };
-  const good = cands.filter(ok).sort((a, b) => Math.hypot(a.x, (a.z - (z0 + 56)) * 1.4) - Math.hypot(b.x, (b.z - (z0 + 56)) * 1.4)).slice(0, 120);
+  /* same 120 plots as before, handed out front-row first so early residents are in open view, not behind the church or castle */
+  const front = c => Math.hypot(c.x - 24, (c.z - (z0 + 26)) * 1.6);
+  const good = cands.filter(ok).sort((a, b) => Math.hypot(a.x, (a.z - (z0 + 56)) * 1.4) - Math.hypot(b.x, (b.z - (z0 + 56)) * 1.4)).slice(0, 120).sort((a, b) => front(a) - front(b));
   good.forEach((c, i) => {
     const h = baseH(c.x, c.z);
     addPad(c.x, c.z, 4.6, h, 4.5);
@@ -212,10 +214,21 @@ export function layout() {
   /* lakeview cottages: 4 terraced rows on the north shore slope, all facing the lake */
   const CROW = [-198, -216, -234, -252];
   for (let r = 0; r < 4; r++) for (let k = 0; k < 10; k++) {
-    const x = (k - 4.5) * 19 + (r % 2 ? 4.5 : -4.5), z = CROW[r] + Math.sin(k * 1.7 + r) * 1.4, h = baseH(x, z);
-    addPad(x, z, 7, h, 6);
+    const x = (k - 4.5) * 19 + (r % 2 ? 4.5 : -4.5), z = CROW[r] + Math.sin(k * 1.7 + r) * 1.4, h = (baseH(x, z) + baseH(x, z + 11)) / 2; /* cut into the hillside: halfway between the back and the front slope, so the stairs below stay gentle */
+    addPad(x, z, 7, h, 13);
     L.cot.push({ i: L.cot.length, x, z, y: h, yaw: (((k * 7 + r * 3) % 5) - 2) * .03, name: 'Cottage ' + (L.cot.length + 1), k: 'cot', w: 7, d: 6, hgt: 9 });
   }
+  /* sidewalks in front of each cottage row: level the ground under them. each row's path height is the natural
+     ground height smoothed along the row, so it rises and falls gently instead of following every bump */
+  const walkZ = [];
+  for (let r = 0; r < 4; r++) { let s = 0; for (let k = 0; k < 10; k++) s += L.cot[r * 10 + k].z; walkZ.push(s / 10 + 11); }
+  L.walk = { z: walkZ, prom: walkZ[0] + 3.8, x0: -98, x1: 98 };
+  const wp = [];
+  for (let r = 0; r < 4; r++) for (let x = L.walk.x0; x <= L.walk.x1; x += 2.4) {
+    let s = 0, n = 0; for (let dx = -12; dx <= 12; dx += 3) { s += baseH(x + dx, walkZ[r]); n++; }
+    wp.push([x, walkZ[r], s / n]);
+  }
+  wp.forEach(p => addPad(p[0], p[1], 1.6, p[2], 3.2));
   return L;
 }
 const KIND = ['Bakery', 'Nail salon', 'Hair salon', 'Cafe', 'Flower shop', 'Barber'];
