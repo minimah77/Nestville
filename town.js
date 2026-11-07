@@ -9,9 +9,9 @@ const $ = id => document.getElementById(id);
 const S = load();
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const QUAL = {
-  low: { step: 6.5, pr: 1, shadow: 0, trees: 1400, fx: 0, refl: 0, label: 'Low' },
-  medium: { step: 4.2, pr: 1.5, shadow: 2048, trees: 4200, fx: 1, refl: 0, label: 'Medium' },
-  high: { step: 2.9, pr: 2, shadow: 4096, trees: 9000, fx: 1, refl: 1, label: 'High' }
+  low: { step: 6.5, pr: 1, shadow: 0, trees: 500, fx: 0, refl: 0, label: 'Low' },
+  medium: { step: 4.2, pr: 1.5, shadow: 2048, trees: 1500, fx: 1, refl: 0, label: 'Medium' },
+  high: { step: 2.9, pr: 2, shadow: 4096, trees: 3000, fx: 1, refl: 1, label: 'High' }
 };
 let gfx = 'medium';
 try { const g = localStorage.getItem('nv-gfx'); if (QUAL[g]) gfx = g; } catch (e) { }
@@ -255,7 +255,7 @@ function streetSpots() {
     return true;
   };
   canals.forEach(c => {
-    const wide = c.w > 3, step = wide ? 13 : 11.2;
+    const wide = c.w > 3, step = wide ? 28 : 24; /* sparse street trees */
     for (let s = wide ? 8 : 11.6; s < c.len - 4; s += step) {
       const p = pathAt(c, s), tx = p[2], tz = p[3];
       for (const side of [1, -1]) {
@@ -348,7 +348,7 @@ const clouds = [];
   }
 })();
 const boats = [];
-[[-70, -100, 36, 24, '#5a4332', '#f5f0e4'], [20, -122, 62, 26, '#2f4f73', '#e9a93a'], [-118, -80, 24, 16, '#8a3b2c', '#f5f0e4'], [-22, -70, 26, 12, '#3f6a5a', '#d9623f'], [62, -132, 42, 14, '#6a4a32', '#3f7fb5']].forEach((c, i) => {
+[[-70, -100, 36, 24, '#5a4332', '#f5f0e4'], [20, -122, 62, 26, '#2f4f73', '#e9a93a'], [-118, -80, 24, 16, '#8a3b2c', '#f5f0e4'], [-22, -70, 26, 12, '#3f6a5a', '#d9623f'], [62, -132, 42, 14, '#6a4a32', '#3f7fb5']].slice(0, 3).forEach((c, i) => {
   const b = new MB(); boat(b, 0, 0, 0, 0, c[4], c[5], 1.25); const m = b.mesh(matV); world.add(m); boats.push({ m, c, ph: i * 1.7, sp: .05 + i * .006 });
 });
 
@@ -367,7 +367,7 @@ const canalBoats = [];
 canals.forEach(c => { c.cum = [0]; for (let i = 1; i < c.pts.length; i++) c.cum.push(c.cum[i - 1] + Math.hypot(c.pts[i][0] - c.pts[i - 1][0], c.pts[i][1] - c.pts[i - 1][1])); c.len = c.cum[c.cum.length - 1]; });
 {
   const r = rng(909);
-  canals.forEach((c, ci) => { const n = Math.max(1, Math.round(c.len / 42)), v = 3.2 + (ci % 3) * .7; for (let k = 0; k < n; k++) canalBoats.push({ c, u0: ((k + r() * .4) / n) * c.len * 2, v, lat: .85, t: (r() * 5) | 0 }); });
+  canals.forEach((c, ci) => { if (ci % 2) return; const n = Math.max(1, Math.round(c.len / 120)), v = 3.2 + (ci % 3) * .7; for (let k = 0; k < n; k++) canalBoats.push({ c, u0: ((k + r() * .4) / n) * c.len * 2, v, lat: .85, t: (r() * 5) | 0 }); });
 }
 const cbMesh = new THREE.InstancedMesh(cbGeo, matV, canalBoats.length); cbMesh.frustumCulled = false; world.add(cbMesh);
 canalBoats.forEach((b, i) => cbMesh.setColorAt(i, CB_TINT[b.t]));
@@ -384,7 +384,7 @@ function updateCanalBoats(t) {
   cbMesh.instanceMatrix.needsUpdate = true; dm.rotation.set(0, 0, 0);
 }
 
-/* three yachts moored in the east bay */
+/* two yachts moored in the east bay */
 const yachtG = new THREE.Group(); world.add(yachtG);
 function yachtMesh(hull, stripe) {
   const b = new MB(); b.at(0, 0, 0, 0);
@@ -401,7 +401,7 @@ function yachtMesh(hull, stripe) {
   const m = b.mesh(matV); return m;
 }
 const yachts = [];
-[[yp.x + 15, yp.z0 - 14, Math.PI, '#f7f5ee', '#1f3b57'], [yp.x - 15, yp.z0 - 22, Math.PI + .07, '#2a3441', '#d9a53a'], [yp.x + 2, yp.z0 - 50, Math.PI - .5, '#f7f5ee', '#8a2f2f']].forEach((c, i) => {
+[[yp.x + 15, yp.z0 - 14, Math.PI, '#f7f5ee', '#1f3b57'], [yp.x - 15, yp.z0 - 30, Math.PI + .07, '#2a3441', '#d9a53a']].forEach((c, i) => {
   const m = yachtMesh(c[3], c[4]); m.position.set(c[0], WL + .2, c[1]); m.rotation.y = c[2]; yachtG.add(m); yachts.push({ m, c, i });
 });
 function updateYachts(t) { yachts.forEach(y => { const c = y.c; y.m.position.set(c[0] + Math.sin(t * .2 + y.i) * .5, WL + .2 + Math.sin(t * .9 + y.i * 2) * .06, c[1] + Math.cos(t * .17 + y.i) * .5); y.m.rotation.y = c[2] + Math.sin(t * .15 + y.i) * .05; y.m.rotation.z = Math.sin(t * .8 + y.i) * .012; }); }
@@ -535,7 +535,7 @@ function cardHTML(e) {
     return x + '<h3>Cottage ' + (i + 1) + '</h3><p>' + (o ? 'Home of @' + o.u + '.' : 'A little cottage with a flower garden, facing the lake.') + '</p>' +
       '<div style="display:flex;gap:8px;align-items:center"><b style="font:600 18px var(--fd)">' + fmt(COT_PRICES[i]) + '</b><span style="flex:1"></span>' + (o ? '' : '<button class="pb gold" data-a="buy" data-k="cot" data-i="' + i + '">Buy</button>') + '</div>';
   }
-  if (e.kind === 'yacht') return x + '<h3>Yacht club</h3><p>Three yachts are moored in the east bay of the lake.</p>';
+  if (e.kind === 'yacht') return x + '<h3>Yacht club</h3><p>Two yachts are moored in the east bay of the lake.</p>';
   const blurb = { lake: 'A white-walled castle on the peninsula, with a tall dark spire.', east: 'Four towers and a tall bell tower on the eastern hill.', island: 'A small keep on its own island in the lake.', tower: 'An old stone watchtower guarding the eastern shore.' };
   if (e.kind === 'castle') return x + '<h3>' + e.label + '</h3><p>' + blurb[e.ref.id] + ' Landmark of Nestville.</p>';
   return x + '<h3>Village church</h3><p>The spire you can see from across the lake.</p>';
