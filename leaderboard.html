@@ -35,6 +35,7 @@ header h1{margin:0;font:600 22px/1.1 var(--fd)}header p{margin:2px 0 0;color:var
 .row .av{line-height:0;flex:none}.row .nm{flex:1;min-width:0}.row .nm b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.row .nm small{color:var(--mute);font-weight:600}
 .row .v{font-weight:700}.row.me{background:linear-gradient(90deg,rgba(233,169,58,.22),transparent);margin:0 -14px;padding-left:14px;padding-right:14px}
 .hint{text-align:center;color:var(--mute);font-size:13px;margin:14px 0 0;font-weight:600}
+.empty{text-align:center;color:var(--mute);font-weight:600;padding:22px 8px}
 :focus-visible{outline:2px solid #0d6e86;outline-offset:2px}
 </style></head><body><div class="hills"></div>
 <div class="wrap">
@@ -42,21 +43,28 @@ header h1{margin:0;font:600 22px/1.1 var(--fd)}header p{margin:2px 0 0;color:var
 <div class="tabs gl" id="tabs"><button data-k="coins" class="on">Richest</button><button data-k="land">Land</button><button data-k="streak">Streak</button></div>
 <div class="pod gl" id="pod"></div>
 <div class="list gl" id="list"></div>
-<p class="hint">Preview standings. Tap a name to fly to their house.</p>
+<p class="hint">Real residents only. Standings are saved on this device for now. Tap a name to fly to their house.</p>
 </div>
 <script type="module">
-import { load, stats, avatar } from './shared.js';
+import { load, stats, avatar, coins } from './shared.js';
 const S = load(), $ = id => document.getElementById(id);
 const rows = S.houses.map(h => ({ u: h.u, ...stats(h.u) }));
-$('sub').textContent = rows.length + ' residents';
-const fmt = { coins: v => v.toLocaleString('en-US'), land: v => v + ' plots', streak: v => v + ' days' };
-const label = { coins: 'coins', land: 'land', streak: 'streak' };
+$('sub').textContent = rows.length === 1 ? '1 resident' : rows.length + ' residents';
+const pl = n => n + (n === 1 ? ' plot' : ' plots'), dy = n => n + (n === 1 ? ' day' : ' days');
+const fmt = { coins: v => coins(v), land: pl, streak: dy };
 let k = 'coins';
 function draw() {
-  const r = rows.slice().sort((a, b) => b[k] - a[k]);
-  const top = [r[1], r[0], r[2]].filter(Boolean), cls = { 0: 'p2', 1: 'p1', 2: 'p3' }, rk = { 0: 2, 1: 1, 2: 3 };
-  $('pod').innerHTML = top.map((x, i) => `<a class="pc ${cls[i]}" href="./#@${x.u}"><span class="cr">${i === 1 ? '👑' : ''}</span><span class="av">${avatar(x.u, i === 1 ? 68 : 54)}</span><b>@${x.u}</b><small>${fmt[k](x[k])}</small><span class="st">${rk[i]}</span></a>`).join('');
-  $('list').innerHTML = r.slice(3, 30).map((x, i) => `<a class="row${x.u === S.me ? ' me' : ''}" href="./#@${x.u}"><span class="n">${i + 4}</span><span class="av">${avatar(x.u, 40)}</span><span class="nm"><b>@${x.u}</b><small>${x.land} plots · ${x.streak} day streak</small></span><span class="v">${k === 'coins' ? fmt.coins(x.coins) : fmt[k](x[k])}</span></a>`).join('');
+  if (!rows.length) {
+    $('pod').style.display = 'none';
+    $('list').innerHTML = '<div class="empty">No residents yet.<br>Be the first to claim a house in Nestville.</div>';
+    return;
+  }
+  $('pod').style.display = '';
+  const r = rows.slice().sort((a, b) => b[k] - a[k] || b.coins - a.coins);
+  const top = [{ x: r[1], rank: 2 }, { x: r[0], rank: 1 }, { x: r[2], rank: 3 }].filter(o => o.x);
+  $('pod').innerHTML = top.map(o => `<a class="pc p${o.rank}" href="./#@${o.x.u}"><span class="cr">${o.rank === 1 ? '👑' : ''}</span><span class="av">${avatar(o.x.u, o.rank === 1 ? 68 : 54)}</span><b>@${o.x.u}</b><small>${fmt[k](o.x[k])}</small><span class="st">${o.rank}</span></a>`).join('');
+  $('list').innerHTML = r.slice(3, 30).map((x, i) => `<a class="row${x.u === S.me ? ' me' : ''}" href="./#@${x.u}"><span class="n">${i + 4}</span><span class="av">${avatar(x.u, 40)}</span><span class="nm"><b>@${x.u}</b><small>${pl(x.land)} · ${dy(x.streak)} streak</small></span><span class="v">${fmt[k](x[k])}</span></a>`).join('');
+  $('list').style.display = r.length > 3 ? '' : 'none';
 }
 $('tabs').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; k = b.dataset.k; document.querySelectorAll('#tabs button').forEach(x => x.classList.toggle('on', x === b)); draw(); });
 draw();
