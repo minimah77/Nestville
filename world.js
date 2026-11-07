@@ -204,6 +204,35 @@ export function layout() {
     addPad(c.x, c.z, 4.6, h, 4.5);
     L.houses.push({ idx: i, x: c.x, z: c.z, y: h, yaw: c.yaw, w: 9, d: 8, hgt: 14, row: c.row });
   });
+
+  /* ---------- hillside quarters ----------
+     Villas scattered over the open meadow west and east of the village. No rows: every house is turned its own way (some look at the mountains,
+     the next one a bit toward the lake, the next toward the far hills), and every one has a little back garden behind it.
+     They are claimable plots like the rest and are handed out after the village rows are full.
+     To move or resize a quarter, change x0/x1/z0/z1 (area) or n (how many) here. dirs = the directions the fronts look: [east, south]. */
+  const QS = [
+    { x0: -268, x1: -194, z0: 26, z1: 172, n: 20, dirs: [[-1, 0], [-.7, -.7], [-.8, .6], [0, -1], [-1, .25]] },
+    { x0: 226, x1: 270, z0: 22, z1: 172, n: 12, dirs: [[1, 0], [.7, -.7], [.8, .6], [0, -1], [1, .25]] }
+  ];
+  let sd = 90210; const rnd = () => { sd = (sd * 1664525 + 1013904223) >>> 0; return sd / 4294967296; };
+  const villas = [];
+  for (const q of QS) {
+    let made = 0;
+    for (let t = 0; t < 1500 && made < q.n; t++) {
+      const x = q.x0 + rnd() * (q.x1 - q.x0), z = q.z0 + rnd() * (q.z1 - q.z0);
+      const dv = q.dirs[made % q.dirs.length], yaw = Math.atan2(dv[0], dv[1]) + (rnd() - .5) * .6; /* the front looks along (sin yaw, cos yaw) */
+      const gx = x - Math.sin(yaw) * 7, gz = z - Math.cos(yaw) * 7; /* centre of the back garden */
+      if (baseH(x, z) < 1.4 || baseH(gx, gz) < 1.2) continue;
+      if (Math.hypot(baseH(x + 6, z) - baseH(x - 6, z), baseH(x, z + 6) - baseH(x, z - 6)) / 12 > .2) continue; /* not on a steep slope */
+      if (L.castles.some(c => Math.hypot(x - c.x, z - c.z) < c.r + 26)) continue;
+      if (villas.some(v => Math.hypot(x - v.x, z - v.z) < 19 || Math.hypot(x - v.gx, z - v.gz) < 12 || Math.hypot(gx - v.x, gz - v.z) < 12)) continue;
+      const h = baseH(x, z);
+      addPad(x, z, 5.6, h, 4.5); addPad(gx, gz, 6.6, h, 5); addPad(x + Math.sin(yaw) * 7.5, z + Math.cos(yaw) * 7.5, 3.4, h, 4); /* house, back garden, front gate */
+      const v = { idx: L.houses.length, x, z, y: h, yaw, w: 9, d: 8, hgt: 14, row: -1, built: true, gx, gz };
+      villas.push(v); L.houses.push(v); made++;
+    }
+  }
+
   /* lakeview cottages: 4 terraced rows on the north shore slope, all facing the lake */
   const CROW = [-198, -216, -234, -252];
   for (let r = 0; r < 4; r++) for (let k = 0; k < 10; k++) {
@@ -228,17 +257,27 @@ export function layout() {
   /* ---------- sidewalks, bridges, footbridges: there are no streets in Nestville, people walk ---------- */
   const inChurch = (x, z) => Math.abs(x - cx) < 20 && z > cz - 27 && z < cz + 15;
   const nearCastle = (x, z, m) => L.castles.some(c => Math.hypot(x - c.x, z - c.z) < c.r + m);
-  /* a stone bridge over the river on every row sidewalk, so every house and shop can reach the other half of the village */
+  /* a stone bridge over the river on every row sidewalk, so every house and shop can reach the other half of the village.
+     The bridge is laid on the straight line between the two sidewalk ends (10 either side of the river), so it is turned a little to match. */
   for (let r = 0; r <= NROWS; r++) {
     let zb = laneZ(r, 12) + .9; zb = laneZ(r, xr(zb)) + .9; const bx = xr(zb);
-    L.bridges.push({ x: bx, y: Math.max(baseH(bx - 11, zb), baseH(bx + 11, zb)) - .8, z: zb, row: r });
+    const zw = laneZ(r, bx - 10) + .9, ze = laneZ(r, bx + 10) + .9;
+    L.bridges.push({ x: bx, y: Math.max(baseH(bx - 11, zb), baseH(bx + 11, zb)) - .8, z: (zw + ze) / 2, zw, ze, yaw: -Math.atan2(ze - zw, 20), row: r });
   }
-  /* one sidewalk in front of every row of houses (the garden paths in paths.js end on it) */
+  /* one sidewalk in front of every row of houses (the garden paths in paths.js end on it).
+     Each sidewalk now runs right up to the end of the bridge (exactly 10 from its centre), so there is no gap of bare grass any more. */
   for (let r = 0; r <= NROWS; r++) {
+    const br = L.bridges[r], gx = [];
+    for (let x = -160; x <= 160; x += 4) if (Math.abs(x - br.x) >= 10.8) gx.push([x, 0]);
+    gx.push([br.x - 10, 1], [br.x + 10, 2]); /* 1 = last point before the bridge, 2 = first point after it */
+    gx.sort((a, b) => a[0] - b[0]);
     let cur = []; const flush = () => { if (cur.length > 2) L.walks.push({ pts: cur, w: 2.4, kind: 'row', row: r }); cur = []; };
-    for (let x = -160; x <= 160; x += 4) {
+    for (const [x, tag] of gx) {
       const z = laneZ(r, x) + .9;
-      if (Math.abs(x - L.bridges[r].x) < 10.6 || inChurch(x, z) || nearCastle(x, z, 4) || H(x, z) < 1.2 || canalDist(x, z) < 3) flush(); else cur.push([x, z]);
+      if (inChurch(x, z) || nearCastle(x, z, 4) || H(x, z) < 1.2 || canalDist(x, z) < 3) { flush(); continue; }
+      if (tag === 2) flush();
+      cur.push([x, z]);
+      if (tag === 1) flush();
     }
     flush();
   }

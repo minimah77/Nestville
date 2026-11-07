@@ -2,14 +2,16 @@
    Every sidewalk is a continuous ribbon. Its height is the HIGHEST ground across its width (then smoothed), so the grass can
    never poke through the pavement (that was the green patches). Gentle slopes become gentle ramps. Slab joints and edge stripes
    keep it looking like pavement. This file also places the stone bridges, the lakefront footbridges and the five parked bicycles.
-   It also records every sidewalk (RIB) so people can walk on the real surface, and a pavement mask so the terrain under a
-   sidewalk is painted grey instead of green. */
+   It also records every sidewalk (RIB) and a pavement mask so the terrain under a sidewalk is painted grey instead of green.
+   NEW: sidewalks are built first, then every bridge is fitted to the real sidewalk heights at its two ends.
+   NEW: surfaceY(x, z) gives the height of any walkable surface (sidewalk, bridge, pier) for the first-person walk (walk.js). */
 import { H } from './world.js';
-import { K, qd, bridge, fbridge, bicycle } from './build.js';
+import { K, qd, bicycle } from './build.js';
+import { bridge, fbridge, FB, fbY } from './bridges.js';
 
 const WALK = '#d9d4c7', EDGE = '#c8c2b3', JOINT = '#bcb6a7', PATH = '#e6dec8', LIFT = .16;
 
-/* every tagged sidewalk: { tag, pts: [[x, z, topY], ...] } (read by folks.js) */
+/* every tagged sidewalk: { tag, pts: [[x, z, topY], ...] } */
 export const RIB = [];
 
 /* pavement mask: spatial hash of sidewalk segments, read by the terrain colouring in town.js */
@@ -29,6 +31,23 @@ export function pavement(x, z) {
     if (d < PV.d) { PV.d = d; PV.col = s[5]; }
   }
   return PV;
+}
+
+/* walkable surfaces: segments with a width and a top height at each end. Sidewalks, bridges and piers register here. */
+const SURF = new Map();
+export function addSurf(x0, z0, x1, z1, hw, y0, y1) {
+  const m = hw + 1, ax = Math.floor((Math.min(x0, x1) - m) / CELL), bx = Math.floor((Math.max(x0, x1) + m) / CELL), az = Math.floor((Math.min(z0, z1) - m) / CELL), bz = Math.floor((Math.max(z0, z1) + m) / CELL);
+  for (let i = ax; i <= bx; i++) for (let j = az; j <= bz; j++) { const k = i + ',' + j; let a = SURF.get(k); if (!a) SURF.set(k, a = []); a.push([x0, z0, x1, z1, hw, y0, y1]); }
+}
+/* top height of the walkable surface at (x,z), or null when there is none */
+export function surfaceY(x, z) {
+  const a = SURF.get(Math.floor(x / CELL) + ',' + Math.floor(z / CELL)); if (!a) return null;
+  let best = null;
+  for (const s of a) {
+    const vx = s[2] - s[0], vz = s[3] - s[1], t = Math.max(0, Math.min(1, ((x - s[0]) * vx + (z - s[1]) * vz) / (vx * vx + vz * vz + 1e-6)));
+    if (Math.hypot(x - (s[0] + vx * t), z - (s[1] + vz * t)) <= s[4]) { const y = s[5] + (s[6] - s[5]) * t; if (best === null || y > best) best = y; }
+  }
+  return best;
 }
 
 /* the sidewalk surface along a polyline: samples with their top height */
@@ -65,6 +84,7 @@ function ribbon(b, pts, w, col = WALK, o = {}) {
   for (let i = 0; i < S.length - 1; i++) {
     const a = S[i], c = S[i + 1];
     if (a.h0 < .9 || c.h0 < .9) continue; /* never down into the lake */
+    addSurf(a.x, a.z, c.x, c.z, hw, a.top, c.top);
     const A = [a.L[0], a.top, a.L[1]], B = [a.R[0], a.top, a.R[1]], C = [c.R[0], c.top, c.R[1]], D = [c.L[0], c.top, c.L[1]];
     qd(b, A, B, C, D, [0, 1, 0], col);
     qd(b, [a.L[0], a.bl, a.L[1]], A, D, [c.L[0], c.bl, c.L[1]], [-a.tz, 0, a.tx], EDGE);
@@ -87,6 +107,14 @@ function yAt(S, x) {
   const a = S[i - 1], c = S[i], t = Math.max(0, Math.min(1, (x - a.x) / ((c.x - a.x) || 1)));
   return a.top + (c.top - a.top) * t;
 }
+/* the same, over a list of ribbons: null when none of them covers x */
+function topAt(list, x) {
+  for (const S of list || []) {
+    if (x < S[0].x - .01 || x > S[S.length - 1].x + .01) continue;
+    return yAt(S, x);
+  }
+  return null;
+}
 
 /* position at distance s in front of a house, along its facing direction */
 const front = (h, s, side = 0) => [h.x + Math.sin(h.yaw) * s + Math.cos(h.yaw) * side, h.z + Math.cos(h.yaw) * s - Math.sin(h.yaw) * side];
@@ -97,13 +125,33 @@ export const BIKES = [[3, [1]], [12, [-1, 1]], [21, [1]], [37, [-1]]];
 
 export function paths(b, L) {
   b.at(0, 0, 0, 0); /* reset the builder transform: the lamps built just before this left it shifted */
-  RIB.length = 0; PAVED.clear();
-  /* ---------- main village ---------- */
-  L.bridges.forEach(br => bridge(b, br.x, br.y, br.z));
-  L.fbr.forEach(f => fbridge(b, f.x, f.y, f.z));
-  L.walks.forEach(w => ribbon(b, w.pts, w.w, WALK, { tag: w.kind }));
-  /* a short path from every front door through the garden gate to the sidewalk */
-  L.houses.forEach(h => { if (h.row > 0) ribbon(b, [front(h, 6.4), front(h, 8.7)], 1.4, PATH, { plain: true, lift: .1, step: 1.2 }); });
+  RIB.length = 0; PAVED.clear(); SURF.clear();
+  /* ---------- main village: sidewalks first, so the bridges can be fitted to them ---------- */
+  const rowS = [], bankS = [];
+  L.walks.forEach(w => {
+    const S = ribbon(b, w.pts, w.w, WALK, { tag: w.kind });
+    if (w.kind === 'row') (rowS[w.row] = rowS[w.row] || []).push(S); else if (w.kind === 'bank') bankS.push(S);
+  });
+  /* stone bridges: the deck runs from the end of the row sidewalk on one bank to the end of the sidewalk on the other, sloping if the banks differ */
+  L.bridges.forEach(br => {
+    const yW = topAt(rowS[br.row], br.x - 10), yE = topAt(rowS[br.row], br.x + 10), old = br.y + 1;
+    const w = yW !== null ? yW : (yE !== null ? yE : old), e = yE !== null ? yE : w;
+    br.y = (w + e) / 2 - 1; br.slope = Math.atan2(e - w, 20);
+    bridge(b, br.x, br.y, br.z, br.yaw || 0, br.slope);
+    addSurf(br.x - 10, br.zw !== undefined ? br.zw : br.z, br.x + 10, br.ze !== undefined ? br.ze : br.z, 2.3, w, e);
+  });
+  /* footbridges: north end meets the bank walk, south end meets the row-0 sidewalk */
+  L.fbr.forEach(f => {
+    const tn = topAt(bankS, f.x), ts = topAt(rowS[0], f.x), yN = tn !== null ? tn : f.y + LIFT, yS = ts !== null ? ts : f.y + LIFT;
+    f.yN = yN; f.yS = yS;
+    fbridge(b, f.x, f.z, yN, yS);
+    for (let i = 0; i < FB.N; i++) { const t0 = i / FB.N, t1 = (i + 1) / FB.N; addSurf(f.x, f.z - FB.L / 2 + t0 * FB.L, f.x, f.z - FB.L / 2 + t1 * FB.L, FB.W / 2 - .3, fbY(yN, yS, t0), fbY(yN, yS, t1)); }
+  });
+  /* a short path from every front door through the garden gate to the sidewalk (hillside villas: just out to the front gate) */
+  L.houses.forEach(h => {
+    if (h.built) ribbon(b, [front(h, 6.4), front(h, 11)], 1.4, PATH, { plain: true, lift: .1, step: 1.2 });
+    else if (h.row > 0) ribbon(b, [front(h, 6.4), front(h, 8.7)], 1.4, PATH, { plain: true, lift: .1, step: 1.2 });
+  });
   L.shops.forEach(s => { if (s.row > 0) { const dx = 2.8, p = (z) => [s.x + dx * Math.cos(s.yaw) + z * Math.sin(s.yaw), s.z - dx * Math.sin(s.yaw) + z * Math.cos(s.yaw)]; ribbon(b, [p(5.2), p(8.7)], 1.7, PATH, { plain: true, lift: .1, step: 1.2 }); } });
 
   /* ---------- cottage village ---------- */
