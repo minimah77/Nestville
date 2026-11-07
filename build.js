@@ -369,7 +369,7 @@ export function cottage(b, C, owned, smoke) {
   for (let i = -4; i <= 4; i++) { if (Math.abs(i) < 1) continue; b.box(i * .85, -.9, gz, .18, 1.9, .12, '#f5f0e4'); }
   b.box(-2.6, .75, gz, 4.6, .1, .1, '#f5f0e4'); b.box(2.6, .75, gz, 4.6, .1, .1, '#f5f0e4');
   b.box(0, -.05, zf + 2.75, 1.3, .15, 2.7, '#d9cfb4');
-  for (let i = 0; i < 26; i++) { const fx = (r() - .5) * 8.2, fz = zf + 1.6 + r() * 2.3; if (Math.abs(fx) < 1.1) continue; b.box(fx, -.5, fz, .42, .8 + r() * .4, .42, FL[(r() * 5) | 0]); }
+  for (let i = 0; i < 9; i++) { const fx = (r() - .5) * 8.2, fz = zf + 1.6 + r() * 2.3; if (Math.abs(fx) < 1.1) continue; b.box(fx, -.5, fz, .42, .8 + r() * .4, .42, FL[(r() * 5) | 0]); }
   b.cone(-3.5, -.4, zf + 1.4, .8, 1.8, 6, '#4f9a4a'); b.cone(3.5, -.4, zf + 1.4, .8, 1.8, 6, '#5ea244');
   /* for sale: padlock on the door and a small gold sign */
   if (!owned) {
