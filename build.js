@@ -39,6 +39,9 @@ export class MB {
     this.Q([x - W, y, zf], [x, yh, zf], [x, yh, zb], [x - W, y, zb], col);
     this.Q([x, yh, zf], [x + W, y, zf], [x + W, y, zb], [x, yh, zb], K(col).clone().multiplyScalar(.82));
     const hl = h * (1 - (w / 2) / W), zF = z + d / 2, zB = z - d / 2;
+    /* gable end walls: fill from the wall top (y) up to the roof line so the roof sits ON the building, no gap */
+    this.Q([x - w / 2, y, zF], [x + w / 2, y, zF], [x + w / 2, y + hl, zF], [x - w / 2, y + hl, zF], colG);
+    this.Q([x + w / 2, y, zB], [x - w / 2, y, zB], [x - w / 2, y + hl, zB], [x + w / 2, y + hl, zB], colG);
     this.T([x - w / 2, y + hl, zF], [x + w / 2, y + hl, zF], [x, yh, zF], colG);
     this.T([x + w / 2, y + hl, zB], [x - w / 2, y + hl, zB], [x, yh, zB], colG);
     /* thin underside so eaves are not see-through */
@@ -108,7 +111,7 @@ function win(b, x, y, zf, w, h, sh, flower, fcol) {
 const FL = ['#e0527a', '#f3a6c0', '#d9463a', '#fff3d6', '#f0b13a'];
 const WALL = ['#f3ead3', '#f6f2e8', '#f0d9a2', '#ecc9a8', '#dbe4e6', '#e9e1c8', '#f2e2c4'];
 const TIM = ['#6e4a31', '#8a5b39', '#5b3f2c', '#7a5a3a'];
-const ROOFS = ['#5a3f33', '#b4532e', '#4a505c', '#7a3b2c', '#6b4a38', '#8a4a34'];
+const ROOFS = ['#5a3f33', '#b4532e', '#6e7684', '#7a3b2c', '#6b4a38', '#8a4a34'];
 const SHUT = ['#4a7c4a', '#b3372d', '#3f6a8f', '#2f6e62', '#c9772f'];
 
 /* ---------------- resident chalet ---------------- */
@@ -164,20 +167,31 @@ export function openLot(b, x, y, z, yaw) {
 /* ---------------- penthouse (8 floors) ---------------- */
 const ACC = ['#e2b04a', '#f5f0e4', '#e2b04a', '#d9623f', '#f5f0e4', '#e2b04a', '#3f7fb5', '#f5f0e4', '#e2b04a', '#d9577f'];
 export function penthouse(b, P, owned) {
-  const acc = ACC[P.i % 10], NF = 8;
+  const acc = ACC[P.i % 10], NF = 8, RAIL = '#efe9dc', GLASS = '#bfe3ef';
   b.at(P.x, P.y, P.z, P.yaw);
   b.box(0, -3.4, 0, 12.2, 7.4, 10.2, '#cfc5b2');
   b.box(0, 3.9, 0, 12.6, .5, 10.6, '#efe9dc');
   b.box(0, 0, 5.15, 2.4, 3.4, .2, '#5a3d2a'); b.box(0, 3.4, 5.15, 2.8, .25, .28, acc);
   for (let i = 0; i < 3; i++) b.box(0, i * .35 - .0, 5.5 + (2 - i) * .55, 3.6 + (2 - i) * .6, .35, 1.1, '#e7dfcf');
   for (let f = 0; f < NF; f++) {
-    const y = 4.4 + f * 5.4;
+    const y = 4.4 + f * 5.4, slab = f % 2 ? '#efe9dc' : acc;
     b.box(0, y, 0, 10, 5, 8, '#9fd0e3');
     b.box(0, y + .35, 4.03, 9.5, 4.3, .05, f === NF - 1 ? '#d8f0f7' : '#c4e6f1');
     for (let i = -4; i <= 4; i++) b.box(i * 1.19, y, 4.07, .12, 5, .1, '#33505e');
     b.box(0, y + 2.4, 4.07, 9.6, .1, .1, '#33505e');
-    b.box(0, y + 5, 0, 10.8, .4, 8.8, f % 2 ? '#efe9dc' : acc);
-    if (f < NF - 1) { b.box(0, y + 5.4, 5.6, 8, .22, 2.4, '#efe9dc'); b.box(0, y + 5.62, 6.7, 8, 1, .08, '#bfe3ef'); }
+    b.box(0, y + 5, 0, 10.8, .4, 8.8, slab);
+    /* full balcony for the floor above: deck continues the slab, glass on three sides, handrail, posts, planter, little table */
+    if (f < NF - 1) {
+      const ty = y + 5.4;
+      b.box(0, y + 5, 5.6, 10.8, .4, 2.4, slab);
+      b.box(0, ty, 6.76, 10.6, 1.05, .07, GLASS);
+      b.box(-5.3, ty, 5.6, .07, 1.05, 2.4, GLASS); b.box(5.3, ty, 5.6, .07, 1.05, 2.4, GLASS);
+      b.box(0, ty + 1.05, 6.76, 10.8, .1, .16, RAIL);
+      b.box(-5.3, ty + 1.05, 5.6, .16, .1, 2.5, RAIL); b.box(5.3, ty + 1.05, 5.6, .16, .1, 2.5, RAIL);
+      for (const px of [-5.3, -1.8, 1.8, 5.3]) b.box(px, ty, 6.76, .14, 1.15, .14, RAIL);
+      b.box(-3.3, ty, 6.1, 2.6, .5, .55, '#6a4a32'); b.box(-3.3, ty + .5, 6.1, 2.4, .35, .45, '#4f9a4a');
+      b.box(2.7, ty, 5.7, .1, .7, .1, '#8a8a8a'); b.box(2.7, ty + .7, 5.7, 1.3, .07, 1.3, '#a77b4e');
+    }
     b.box(-5.15, y, 0, .3, 5, 8, '#e7dfcf'); b.box(5.15, y, 0, .3, 5, 8, '#e7dfcf');
   }
   const ry = 4.4 + NF * 5.4 + .4;
@@ -186,6 +200,9 @@ export function penthouse(b, P, owned) {
   b.box(-2.6, ry + .15, .6, 5, .12, 4.4, '#e7dfcf'); b.box(-2.6, ry + .2, .6, 4.4, .1, 3.8, '#2fb9d6');
   for (let i = -5; i <= 5; i += 1.1) { b.box(i, ry + .2, 4.4, .12, .95, .08, '#cfeaf3'); b.box(i, ry + .2, -4.4, .12, .95, .08, '#cfeaf3'); }
   b.box(0, ry + 1.1, 4.4, 11, .08, .1, '#efe9dc');
+  /* roof terrace: back and side rails so it is enclosed all the way round */
+  b.box(0, ry + 1.1, -4.4, 11, .08, .1, '#efe9dc');
+  for (const sx of [-5.58, 5.58]) { for (let k = -4.4; k <= 4.5; k += 1.1) b.box(sx, ry + .2, k, .08, .95, .12, '#cfeaf3'); b.box(sx, ry + 1.1, 0, .1, .08, 9, '#efe9dc'); }
   b.box(-5.3, ry + .2, -1, .5, .7, 6, '#6aa84a'); b.cone(-5.3, ry + .6, -3, .9, 1.8, 6, '#4f9a4a'); b.cone(-5.3, ry + .6, 1.2, .9, 1.8, 6, '#4f9a4a');
   for (const [px, pz] of [[1, -3], [4.4, -3], [1, 1.6], [4.4, 1.6]]) b.box(px, ry + .2, pz, .15, 3, .15, '#6a4a32');
   b.box(2.7, ry + 3.2, -.7, 4.2, .15, 5, '#efe9dc');
@@ -340,7 +357,10 @@ export function cottage(b, C, owned, smoke) {
   b.gable(0, 3.9, 0, w, d, 3.2, .7, roof, tim);
   b.box(0, 4.7, zf + .04, 1.1, 1.2, .08, '#4f7894'); b.box(0, 4.6, zf + .02, 1.5, 1.6, .06, '#f8f4e8');
   b.box(0, .6, zf + .03, 1.4, 2.6, .12, door); b.box(0, 3.2, zf + .03, 1.7, .22, .14, '#f8f4e8');
-  b.box(0, .2, zf + .7, 2.4, .4, 1.4, '#b9b2a2');
+  /* little stone balcony at the door (like the house in Up), then three steps down to the garden path */
+  b.box(0, -.1, zf + .75, 2.8, .65, 1.5, '#a7a69e');
+  for (const s of [-1, 1]) b.box(s * 1.3, .55, zf + .75, .2, .55, 1.5, '#8d8c85');
+  b.box(0, -.1, zf + 1.8, 1.8, .5, .6, '#a7a69e'); b.box(0, -.1, zf + 2.3, 1.8, .35, .5, '#a7a69e'); b.box(0, -.1, zf + 2.75, 1.8, .2, .4, '#a7a69e');
   win(b, -2, 1.8, zf, 1.1, 1.4, sh, true, FL); win(b, 2, 1.8, zf, 1.1, 1.4, sh, true, FL);
   const cx = w * .25, cz = -d * .15;
   b.box(cx, 3.9, cz, .9, 4.4, .9, '#a67856'); b.box(cx, 8.3, cz, 1.2, .26, 1.2, '#8c6244');
