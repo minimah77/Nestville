@@ -1,5 +1,6 @@
 /* Nestville town: renderer, terrain, camera, UI */
 import * as THREE from './lib.js';
+import { paths } from './paths.js';
 import { MB, chalet, openLot, penthouse, castleLake, castleEast, castleIsland, watchtower, church, fountain, shop, cottage, bridge, pier, boat, lamp, K } from './build.js';
 import { H, B, TOWN, L, layout, baseH, xr, Rs, roadDist, plazas, sz, laneZ, canals, canalDist, WL, RIVER_Z0, RIVER_Z1, sm, fbm } from './world.js';
 import { load, save, PH_PRICES, SHOP_PRICE, COT_PRICES, KINDS, IG_DM, fmt, avatar, stats, rng } from './shared.js';
@@ -195,6 +196,7 @@ function buildStatic() {
   pier(b, L.pier, .9); pier(b, L.yachtPier, .9);
   for (let x = -52; x <= 40; x += 34.5) { const z = sz(x) + 4.2; lamp(b, x, Math.max(1.2, baseH(x, z)), z); }
   lampSpots().forEach(p => lamp(b, p[0], p[1], p[2]));
+  paths(b, L);
   addMesh(stat, b);
 }
 function buildDyn() {
