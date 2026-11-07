@@ -1,0 +1,252 @@
+/* Nestville seasons: spring, summer, autumn, winter.
+   The village starts in the real season of the visitor (device date; the southern hemisphere is flipped by time zone),
+   and the season button (#vSeason) cycles through the four. Recolours the sky, light, water, ground and trees,
+   and adds falling petals (spring), falling leaves (autumn) or snow (winter).
+   Runs next to town.js and reads the same scene (window.__nv). */
+import * as THREE from './lib.js';
+
+const $ = id => document.getElementById(id);
+function ready(fn) { if (window.__nv) fn(window.__nv); else setTimeout(() => ready(fn), 50); }
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const ORDER = ['spring', 'summer', 'autumn', 'winter'];
+const NAME = { spring: 'Spring', summer: 'Summer', autumn: 'Autumn', winter: 'Winter' };
+const ICON = {
+  spring: '<path d="M12 21v-9"/><path d="M12 12c0-4 3-6 7-6 0 4-3 6-7 6z"/><path d="M12 15c0-3-2-5-6-5 0 3 2 5 6 5z"/>',
+  summer: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  autumn: '<path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.5 19 2c1 2 2 4.2 2 8 0 5.5-4.8 10-10 10z"/><path d="M2 21c0-3 1.9-5.4 5.1-6C9.5 14.5 12 13 13 12"/>',
+  winter: '<path d="M12 2v20M4.9 7l14.2 10M4.9 17L19.1 7M9 3.5l3 2.5 3-2.5M9 20.5l3-2.5 3 2.5"/>'
+};
+
+/* the real season, from the device clock. Months are meteorological seasons; the southern hemisphere is flipped by time zone. */
+const SOUTH = /^(Australia|Antarctica)\/|^Pacific\/(Auckland|Fiji|Chatham|Tongatapu|Apia|Noumea|Norfolk)|^America\/(Sao_Paulo|Argentina|Santiago|Montevideo|Asuncion|Punta_Arenas)|^Africa\/(Johannesburg|Maputo|Harare|Lusaka|Windhoek|Gaborone|Maseru|Mbabane)|^Indian\/(Reunion|Mauritius|Antananarivo)/;
+function realSeason() {
+  let m = new Date().getMonth(), tz = '';
+  try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) { }
+  if (SOUTH.test(tz)) m = (m + 6) % 12;
+  return m >= 2 && m <= 4 ? 'spring' : m >= 5 && m <= 7 ? 'summer' : m >= 8 && m <= 10 ? 'autumn' : 'winter';
+}
+
+/* ---------- light, sky and water per season ---------- */
+const col = h => new THREE.Color(h);
+const mk = o => ({ top: col(o.top), mid: col(o.mid), hor: col(o.hor), hemiS: col(o.hemiS), hemiG: col(o.hemiG), sun: col(o.sun), water: col(o.water || '#4fb4cc'), cloud: col(o.cloud || '#ffffff'), hemiI: o.hemiI, sunI: o.sunI, wAmt: o.wAmt || 0 });
+const SEA = {
+  spring: mk({ top: '#4d9bd8', mid: '#a6d3ec', hor: '#d9ecf1', hemiS: '#d3e9f7', hemiG: '#8fae62', hemiI: 1.1, sun: '#fff3da', sunI: 2.5 }),
+  summer: mk({ top: '#4d93cf', mid: '#9fcbe6', hor: '#cfe3ee', hemiS: '#cfe6f6', hemiG: '#8c7d5c', hemiI: 1.05, sun: '#fff1d6', sunI: 2.5 }),
+  autumn: mk({ top: '#5d93c3', mid: '#b5cfdb', hor: '#ecdcc2', hemiS: '#d8e2e8', hemiG: '#a67c48', hemiI: 1.05, sun: '#ffd7a0', sunI: 2.3, water: '#3f8da6', wAmt: .35, cloud: '#ece6df' }),
+  winter: mk({ top: '#7c9db8', mid: '#c2d3de', hor: '#e6edf1', hemiS: '#dbe8f2', hemiG: '#c9d4dc', hemiI: 1.2, sun: '#eef3ff', sunI: 1.9, water: '#d3e9f0', wAmt: .7, cloud: '#cfd8de' })
+};
+const cloneL = a => { const o = {}; for (const k in a) o[k] = a[k].isColor ? a[k].clone() : a[k]; return o; };
+const copyL = (d, s) => { for (const k in s) { if (s[k].isColor) d[k].copy(s[k]); else d[k] = s[k]; } };
+const mixL = (a, b, t, out) => { for (const k in a) { if (a[k].isColor) out[k].lerpColors(a[k], b[k], t); else out[k] = lerp(a[k], b[k], t); } };
+
+/* ---------- ground colours: the terrain keeps its summer colours, each season is computed from them ---------- */
+function rgb2hsl(r, g, b, o) {
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, d = mx - mn; let h = 0, s = 0;
+  if (d > 1e-6) { s = l > .5 ? d / (2 - mx - mn) : d / (mx + mn); h = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; h /= 6; }
+  o[0] = h; o[1] = s; o[2] = l;
+}
+function hue(p, q, t) { if (t < 0) t += 1; if (t > 1) t -= 1; if (t < 1 / 6) return p + (q - p) * 6 * t; if (t < .5) return q; if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6; return p; }
+function hsl2rgb(h, s, l, o) {
+  if (s < 1e-6) { o[0] = o[1] = o[2] = l; return; }
+  const q = l < .5 ? l * (1 + s) : l + s - l * s, p = 2 * l - q;
+  o[0] = hue(p, q, h + 1 / 3); o[1] = hue(p, q, h); o[2] = hue(p, q, h - 1 / 3);
+}
+const SNOW = [.9, .94, .96];
+function terrainTarget(geo, orig, season) {
+  const pos = geo.attributes.position.array, n = pos.length / 3, out = new Float32Array(orig.length), hs = [0, 0, 0], c = [0, 0, 0];
+  for (let i = 0; i < n; i++) {
+    const k = i * 3, r = orig[k], g = orig[k + 1], b = orig[k + 2], x = pos[k], y = pos[k + 1], z = pos[k + 2];
+    let nr = r, ng = g, nb = b;
+    if (y >= .3) { /* below that is lake bed: it stays as it is */
+      rgb2hsl(r, g, b, hs);
+      const h = hs[0], s = hs[1], l = hs[2], veg = clamp((h - .15) / .05, 0, 1) * clamp((s - .1) / .15, 0, 1) * (h < .5 ? 1 : 0);
+      if (season === 'winter') {
+        const f = .97 + .03 * Math.sin(x * .2) * Math.sin(z * .17), a = lerp(.62, .93, veg);
+        nr = lerp(r, SNOW[0] * f, a); ng = lerp(g, SNOW[1] * f, a); nb = lerp(b, SNOW[2] * f, a);
+      } else if (veg > .01) {
+        let h2 = h, s2 = s, l2 = l;
+        if (season === 'spring') { h2 = h - .012; s2 = Math.min(1, s * 1.1); l2 = Math.min(.8, l * 1.08); }
+        else if (season === 'summer') { s2 = Math.min(1, s * 1.18); l2 = l * .94; }
+        else { /* autumn: golden meadows with russet patches, darker ground under the forest turns red-brown */
+          const n1 = Math.sin(x * .045 + 1.7) * Math.sin(z * .05 + .4), tH = (l < .16 ? .06 : .11) + n1 * .025;
+          h2 = lerp(h, tH, .92); s2 = clamp(s * .95, .3, .85); l2 = l * (l < .16 ? 1.15 : .98);
+        }
+        hsl2rgb(h2, s2, l2, c);
+        nr = lerp(r, c[0], veg); ng = lerp(g, c[1], veg); nb = lerp(b, c[2], veg);
+      }
+    }
+    out[k] = nr; out[k + 1] = ng; out[k + 2] = nb;
+  }
+  return out;
+}
+
+/* ---------- trees ---------- */
+const pal = a => a.map(col);
+const BRD = {
+  spring: pal(['#8ccf63', '#9ad66f', '#f2b8c9', '#f6d1dc', '#7fc455', '#fff0f4']),
+  summer: pal(['#4f9f3d', '#5fae45', '#6db84d', '#4a9440', '#58a844']),
+  autumn: pal(['#d9a53a', '#d9703a', '#c9482f', '#e6b84a', '#b8862e', '#a8452c', '#d98a2f', '#7da23a']),
+  winter: pal(['#e8eef0', '#dfe7ea', '#d4dde1', '#f3f6f7', '#cfd9de'])
+};
+const CON = { spring: [1.15, 1.3, .9], summer: [1, 1, 1], autumn: [1.1, .97, .72], winter: [1.35, 1.5, 1.65] };
+const hash = i => { const s = Math.sin(i * 12.9898 + 78.233) * 43758.5453; return s - Math.floor(s); };
+function whiteVerts(g) {
+  const a = g.attributes.color; if (!a) return false;
+  for (let i = 0; i < a.array.length; i += 3) if (a.array[i] > .85 && a.array[i + 1] > .85 && a.array[i + 2] > .85) return true;
+  return false;
+}
+function treeTarget(m, season) {
+  const orig = m.userData.orig, out = new Float32Array(orig.length), n = m.count;
+  out.set(orig);
+  for (let i = 0; i < n; i++) {
+    const k = i * 3;
+    if (m.userData.sk === 'con') { const mu = CON[season]; out[k] = orig[k] * mu[0]; out[k + 1] = orig[k + 1] * mu[1]; out[k + 2] = orig[k + 2] * mu[2]; }
+    else { const p = BRD[season], c = p[Math.floor(hash(i * 3 + 1) * p.length) % p.length], v = .9 + .1 * hash(i * 7 + 2); out[k] = c.r * v; out[k + 1] = c.g * v; out[k + 2] = c.b * v; }
+  }
+  return out;
+}
+
+ready(nv => {
+  const scene = nv.scene, camera = nv.camera, rend = nv.renderer;
+  const world = scene.children.find(o => o.isGroup);
+  const sky = scene.children.find(o => o.isMesh && o.material && o.material.isShaderMaterial && o.material.uniforms && o.material.uniforms.hor);
+  const hemi = scene.children.find(o => o.isHemisphereLight), sun = scene.children.find(o => o.isDirectionalLight);
+  if (!world || !sky || !hemi || !sun) return;
+
+  /* water and cloud materials (the only Phong materials in the world are water) */
+  const waters = []; let cloud = null;
+  world.traverse(o => {
+    if (!o.isMesh || !o.material) return;
+    const m = o.material;
+    if (m.isMeshPhongMaterial && !waters.includes(m)) { m.userData.c0 = m.color.clone(); waters.push(m); }
+    else if (m.isMeshLambertMaterial && m.flatShading && m.transparent && m.opacity > .9) cloud = m;
+  });
+  function applyLights(L) {
+    const u = sky.material.uniforms; u.top.value.copy(L.top); u.mid.value.copy(L.mid); u.hor.value.copy(L.hor);
+    if (scene.fog) scene.fog.color.copy(L.hor);
+    hemi.color.copy(L.hemiS); hemi.groundColor.copy(L.hemiG); hemi.intensity = L.hemiI;
+    sun.color.copy(L.sun); sun.intensity = L.sunI;
+    waters.forEach(m => { m.color.copy(m.userData.c0).lerp(L.water, L.wAmt); });
+    if (cloud) cloud.color.copy(L.cloud);
+  }
+
+  /* ---------- falling things ---------- */
+  const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const NP = 900, PS = new Float32Array(NP * 4), pPos = new Float32Array(NP * 3), pCol = new Float32Array(NP * 3);
+  for (let i = 0; i < NP; i++) { PS[i * 4] = hash(i * 5 + 1); PS[i * 4 + 1] = hash(i * 5 + 2); PS[i * 4 + 2] = hash(i * 5 + 3); PS[i * 4 + 3] = hash(i * 5 + 4); }
+  const pGeo = new THREE.BufferGeometry();
+  pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3)); pGeo.setAttribute('color', new THREE.BufferAttribute(pCol, 3));
+  const TEX = {};
+  function tex(kind) {
+    if (TEX[kind]) return TEX[kind];
+    const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d');
+    if (kind === 'snow') { const g = x.createRadialGradient(32, 32, 0, 32, 32, 30); g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(.55, 'rgba(255,255,255,.9)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, 64, 64); }
+    else {
+      x.translate(32, 32); x.rotate(-.6); x.fillStyle = '#ffffff'; x.beginPath(); x.ellipse(0, 0, 28, kind === 'leaf' ? 13 : 16, 0, 0, 6.3); x.fill();
+      if (kind === 'leaf') { x.strokeStyle = 'rgba(0,0,0,.28)'; x.lineWidth = 3; x.beginPath(); x.moveTo(-26, 0); x.lineTo(26, 0); x.stroke(); }
+    }
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return TEX[kind] = t;
+  }
+  const pMat = new THREE.PointsMaterial({ size: 3, vertexColors: true, transparent: true, opacity: .9, depthWrite: false, sizeAttenuation: false, fog: false });
+  const pts = new THREE.Points(pGeo, pMat); pts.frustumCulled = false; pts.renderOrder = 9; pts.visible = false; scene.add(pts);
+  const KIND = {
+    spring: { k: 'petal', n: 520, px: 6, spd: .06, wind: .004, cols: ['#f6c6d6', '#ffffff', '#f8d9e4', '#f2b8c9'] },
+    autumn: { k: 'leaf', n: 420, px: 8, spd: .085, wind: .008, cols: ['#d9a53a', '#d9703a', '#c9482f', '#e6b84a', '#a8452c'] },
+    winter: { k: 'snow', n: 900, px: 3.4, spd: .07, wind: .003, cols: ['#ffffff'] }
+  };
+  let fall = null, pCount = 0;
+  function setFalling(season) {
+    fall = reduced ? null : KIND[season] || null;
+    if (!fall) { pts.visible = false; return; }
+    let low = false; try { low = localStorage.getItem('nv-gfx') === 'low'; } catch (e) { }
+    pCount = Math.round(fall.n * (low ? .4 : 1));
+    for (let i = 0; i < NP; i++) { const c = col(fall.cols[i % fall.cols.length]); pCol[i * 3] = c.r; pCol[i * 3 + 1] = c.g; pCol[i * 3 + 2] = c.b; }
+    pGeo.attributes.color.needsUpdate = true; pGeo.setDrawRange(0, pCount);
+    pMat.map = tex(fall.k); pMat.size = fall.px * Math.min(rend.getPixelRatio(), 2); pMat.needsUpdate = true; pts.visible = true;
+  }
+  function moveFalling(dt, T) {
+    if (!fall || !pts.visible) return;
+    const cm = nv.cam, E = clamp(cm.dist * .55, 26, 150), H = E * .9, y0 = cm.ty - 4;
+    for (let i = 0; i < pCount; i++) {
+      const k = i * 4, ph = PS[k + 3];
+      let u = PS[k], v = PS[k + 1], w = PS[k + 2];
+      v -= fall.spd * (.7 + ph * .6) * dt; if (v < 0) v += 1;
+      u += (fall.wind + Math.sin(T * .6 + ph * 20) * .01) * dt; w += Math.cos(T * .5 + ph * 17) * .006 * dt;
+      u -= Math.floor(u); w -= Math.floor(w);
+      PS[k] = u; PS[k + 1] = v; PS[k + 2] = w;
+      pPos[i * 3] = cm.tx + (u - .5) * 2 * E + Math.sin(T * 1.3 + ph * 40) * E * .012;
+      pPos[i * 3 + 1] = y0 + v * H;
+      pPos[i * 3 + 2] = cm.tz + (w - .5) * 2 * E + Math.cos(T * 1.1 + ph * 33) * E * .012;
+    }
+    pGeo.attributes.position.needsUpdate = true;
+  }
+
+  /* ---------- switching ---------- */
+  let season = realSeason(), cur = cloneL(SEA[season]), tw = null, terr = null;
+  const REAL = season;
+  function treeMeshes() { return world.children.filter(o => o.isInstancedMesh && o.instanceColor && typeof o.userData.sk === 'string'); }
+  function terrTo(s) { const g = terr.geometry; return g.userData.tc[s] || (g.userData.tc[s] = terrainTarget(g, g.userData.orig, s)); }
+
+  /* meshes can be rebuilt (graphics quality change): a new one gets the current season straight away */
+  function scan() {
+    for (const o of world.children) {
+      if (o.isInstancedMesh) {
+        if (!o.instanceColor || o.userData.sk !== undefined) continue;
+        const g = o.geometry; if (!g.boundingBox) g.computeBoundingBox();
+        if (g.boundingBox.max.y < 4) { o.userData.sk = null; continue; } /* the little canal boats */
+        o.userData.sk = whiteVerts(g) ? 'brd' : 'con';
+        o.userData.orig = Float32Array.from(o.instanceColor.array);
+        o.instanceColor.array.set(treeTarget(o, season)); o.instanceColor.needsUpdate = true;
+      } else if (o.isMesh && o.geometry.attributes.color && o.geometry.index && o.geometry.attributes.position.count > 3000 && !o.geometry.userData.orig) {
+        const g = o.geometry; g.userData.orig = Float32Array.from(g.attributes.color.array); g.userData.tc = {}; terr = o;
+        g.attributes.color.array.set(terrTo(season)); g.attributes.color.needsUpdate = true;
+      }
+    }
+  }
+  function setSeason(s, instant) {
+    scan(); season = s; setFalling(s); paint();
+    if (instant) {
+      tw = null; copyL(cur, SEA[s]); applyLights(cur);
+      if (terr) { terr.geometry.attributes.color.array.set(terrTo(s)); terr.geometry.attributes.color.needsUpdate = true; }
+      treeMeshes().forEach(m => { m.instanceColor.array.set(treeTarget(m, s)); m.instanceColor.needsUpdate = true; });
+      return;
+    }
+    tw = { t: 0, from: cloneL(cur), to: SEA[s], terr: null, trees: [] };
+    if (terr) { const a = terr.geometry.attributes.color; tw.terr = { a, from: Float32Array.from(a.array), to: terrTo(s) }; }
+    treeMeshes().forEach(m => tw.trees.push({ m, from: Float32Array.from(m.instanceColor.array), to: treeTarget(m, s) }));
+  }
+  const lerpInto = (arr, f, t, e) => { for (let i = 0; i < arr.length; i++) arr[i] = f[i] + (t[i] - f[i]) * e; };
+  function tick(dt, T) {
+    if (camera.position.x > 3000) return; /* inside a home: wait until you are back outside */
+    if (tw) {
+      tw.t += dt / .9; const k = Math.min(1, tw.t), e = k * k * (3 - 2 * k);
+      mixL(tw.from, tw.to, e, cur); applyLights(cur);
+      if (tw.terr) { lerpInto(tw.terr.a.array, tw.terr.from, tw.terr.to, e); tw.terr.a.needsUpdate = true; }
+      tw.trees.forEach(q => { lerpInto(q.m.instanceColor.array, q.from, q.to, e); q.m.instanceColor.needsUpdate = true; });
+      if (k >= 1) tw = null;
+    }
+    moveFalling(dt, T);
+  }
+  const origRender = rend.render.bind(rend); let last = performance.now();
+  rend.render = function (s, c) {
+    const now = performance.now(), dt = Math.min(.1, (now - last) / 1000); last = now;
+    scan(); tick(dt, now / 1000); origRender(s, c);
+  };
+
+  /* ---------- the button ---------- */
+  const btn = $('vSeason');
+  function paint() {
+    if (!btn) return;
+    btn.innerHTML = '<svg viewBox="0 0 24 24">' + ICON[season] + '</svg>';
+    const l = 'Season: ' + NAME[season] + '. Tap to change'; btn.setAttribute('aria-label', l); btn.title = l;
+  }
+  let tt = 0;
+  if (btn) btn.addEventListener('click', () => {
+    const s = ORDER[(ORDER.indexOf(season) + 1) % ORDER.length]; setSeason(s);
+    const t = $('toast'); if (!t) return;
+    t.textContent = NAME[s] + (s === REAL ? ' (right now)' : ''); t.classList.add('on'); clearTimeout(tt); tt = setTimeout(() => t.classList.remove('on'), 1800);
+  });
+  setSeason(season, true);
+  nv.season = { get: () => season, set: s => ORDER.includes(s) && setSeason(s), real: REAL };
+});
