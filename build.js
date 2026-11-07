@@ -396,18 +396,18 @@ export function boat(b, x, y, z, yaw, hull, sail, big = 1) {
 }
 /* classic English cast-iron street lamp: stepped plinth, fluted column, glass lantern with a pyramid hat */
 export function lamp(b, x, y, z) {
-  const iron = '#232d29', gold = '#c9a24a', glass = '#fff0b8';
+  const iron = '#232d29', gold = '#c9a24a', glass = '#fff0b8', k = .8; /* a little smaller than before */
   b.at(x, y, z, 0);
-  b.box(0, -.3, 0, .74, .72, .74, iron);
-  b.box(0, .42, 0, .54, .3, .54, iron);
-  b.cyl(0, .72, 0, .3, 1.5, 10, iron);
-  b.cyl(0, 2.22, 0, .4, .2, 10, iron);
-  b.cyl(0, 2.42, 0, .19, 1.9, 10, iron);
-  b.cyl(0, 4.32, 0, .29, .16, 10, iron);
-  b.box(0, 4.48, 0, .84, .14, .84, iron);
-  b.cone(0, 4.62, 0, .5, 1.05, 4, glass, .72);
-  for (const [dx, dz] of [[.61, 0], [-.61, 0], [0, .61], [0, -.61]]) b.box(dx, 4.62, dz, .08, 1.05, .08, iron);
-  b.cone(0, 5.67, 0, .92, .5, 4, iron);
-  b.cyl(0, 6.15, 0, .08, .3, 6, gold);
-  b.cone(0, 6.4, 0, .17, .26, 6, gold);
+  b.box(0, -.3 * k, 0, .74 * k, .72 * k, .74 * k, iron);
+  b.box(0, .42 * k, 0, .54 * k, .3 * k, .54 * k, iron);
+  b.cyl(0, .72 * k, 0, .3 * k, 1.5 * k, 10, iron);
+  b.cyl(0, 2.22 * k, 0, .4 * k, .2 * k, 10, iron);
+  b.cyl(0, 2.42 * k, 0, .19 * k, 1.9 * k, 10, iron);
+  b.cyl(0, 4.32 * k, 0, .29 * k, .16 * k, 10, iron);
+  b.box(0, 4.48 * k, 0, .84 * k, .14 * k, .84 * k, iron);
+  b.cone(0, 4.62 * k, 0, .5 * k, 1.05 * k, 4, glass, .72);
+  for (const [dx, dz] of [[.61, 0], [-.61, 0], [0, .61], [0, -.61]]) b.box(dx * k, 4.62 * k, dz * k, .08 * k, 1.05 * k, .08 * k, iron);
+  b.cone(0, 5.67 * k, 0, .92 * k, .5 * k, 4, iron);
+  b.cyl(0, 6.15 * k, 0, .08 * k, .3 * k, 6, gold);
+  b.cone(0, 6.4 * k, 0, .17 * k, .26 * k, 6, gold);
 }
