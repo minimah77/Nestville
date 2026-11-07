@@ -129,7 +129,7 @@ export function paths(b, L) {
   /* ---------- main village: sidewalks first, so the bridges can be fitted to them ---------- */
   const rowS = [], bankS = [];
   L.walks.forEach(w => {
-    const S = ribbon(b, w.pts, w.w, WALK, { tag: w.kind });
+    const S = ribbon(b, w.pts, w.w, w.col || WALK, { tag: w.kind }); /* w.col: the old-town districts are cobbled */
     if (w.kind === 'row') (rowS[w.row] = rowS[w.row] || []).push(S); else if (w.kind === 'bank') bankS.push(S);
   });
   /* stone bridges: the deck runs from the end of the row sidewalk on one bank to the end of the sidewalk on the other, sloping if the banks differ */
@@ -151,9 +151,9 @@ export function paths(b, L) {
   /* a short path from every front door through the garden gate to the sidewalk (hillside villas: just out to the front gate) */
   L.houses.forEach(h => {
     if (h.built) ribbon(b, [front(h, 6.4), front(h, 11)], 1.4, PATH, { plain: true, lift: .1, step: 1.2 });
-    else if (h.row > 0) ribbon(b, [front(h, 6.4), front(h, 8.7)], 1.4, PATH, { plain: true, lift: .1, step: 1.2 });
+    else if (h.row > 0) ribbon(b, [front(h, 6.4), front(h, 8.7 + (h.n || 0))], 1.4, PATH, { plain: true, lift: .1, step: 1.2 }); /* h.n: how far world.js moved the house toward the sidewalk */
   });
-  L.shops.forEach(s => { if (s.row > 0) { const dx = 2.8, p = (z) => [s.x + dx * Math.cos(s.yaw) + z * Math.sin(s.yaw), s.z - dx * Math.sin(s.yaw) + z * Math.cos(s.yaw)]; ribbon(b, [p(5.2), p(8.7)], 1.7, PATH, { plain: true, lift: .1, step: 1.2 }); } });
+  L.shops.forEach(s => { if (s.row > 0) { const dx = 2.8, p = (z) => [s.x + dx * Math.cos(s.yaw) + z * Math.sin(s.yaw), s.z - dx * Math.sin(s.yaw) + z * Math.cos(s.yaw)]; ribbon(b, [p(5.2), p(8.7 + (s.n || 0))], 1.7, PATH, { plain: true, lift: .1, step: 1.2 }); } });
 
   /* ---------- cottage village ---------- */
   const cot = L.cot; if (!cot.length) return;

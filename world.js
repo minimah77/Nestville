@@ -85,8 +85,26 @@ export function canalDist(x, z) { /* distance to the nearest canal edge (negativ
   }
   return best;
 }
-const PITCH = 18.5, NROWS = 6;
+const PITCH = 21, NROWS = 6; /* row spacing: was 18.5, opened up so a street fits behind every row of houses */
 export const laneZ = (r, x) => sz(x) + 16 + r * PITCH + 3 * Math.sin(x * .045 + r * .3);
+
+/* ---------- STREETS (step 1 of the "like the photo" makeover) ----------
+   The E-W canal is gone. Every row now has an asphalt street running in front of its sidewalk, and a few narrow cross streets run N-S
+   through the gaps between houses (gap centres of the 16.5 spacing), so the blocks look like the photo. The river stays as the one canal.
+   ROAD_W: width of every street. ROAD_OFF: street centre relative to laneZ (so the street edge touches the row sidewalk).
+   XSTREETS: x of the cross streets. XW: their half width. To add or move one, edit XSTREETS (use a house-gap centre: -151.75 + 16.5 * k). */
+export const ROAD_W = 4.6, ROAD_OFF = -2.6, XW = 2.0;
+export const XSTREETS = [-118.75, -69.25, 46.25, 95.75];
+export const roadZ = (r, x) => laneZ(r, x) + ROAD_OFF;
+/* is (x, z) closer than m to a cross street (only counting the stretch between the first and the last row street)? */
+/* how far (>= 0) a footprint (half depth hd, half width 4.8) whose centre is (x, z) in row r pokes into the street behind it (row r + 1).
+   Houses and shops are moved that far toward their own sidewalk (their .n), and their garden path gets longer by the same amount. */
+export const backOverlap = (x, z, r, hd) => {
+  if (r >= NROWS) return 0; let worst = 0;
+  for (const dx of [-4.8, -2.4, 0, 2.4, 4.8]) worst = Math.max(worst, (z + hd + .3) - (roadZ(r + 1, x + dx) - ROAD_W / 2));
+  return Math.min(3, worst);
+};
+export const crossBlock = (x, z, m) => XSTREETS.some(X => Math.abs(x - X) < XW + m && z > roadZ(0, X) - 4 && z < roadZ(NROWS, X) + 4);
 
 /* road mask (only the lakeside promenade is paved now) */
 export const roads = []; /* each: array of [x,z] */
@@ -125,6 +143,16 @@ export function layout() {
   addPad(cx, cz + 1, 11, undefined, 6);
   addPad(L.plaza.x, L.plaza.z, 9, undefined, 5);
 
+  /* three more little squares with a fountain (a jet of water that rises and falls back into the pool, see extras.js).
+     Each one sits in the strip between two sidewalks, so a sidewalk runs along both its sides. [row, x]. Houses and shops keep clear of them. */
+  L.squares = [];
+  for (const [r, x] of [[1, -104], [3, 76], [4, -52]]) {
+    const q = { x, z: laneZ(r, x) + 9.6, r: 8 };
+    L.squares.push(q); plazas.push(q);
+    addPad(q.x, q.z, 7, undefined, 5);
+  }
+  const nearSquare = (x, z, m) => L.squares.some(q => Math.hypot(x - q.x, z - q.z) < q.r + m);
+
   /* castles */
   const lc = { x: -68, z: z0 - 12 }; /* lakeside peninsula castle */
   addPad(lc.x, lc.z, 14, 3.6, 12);
@@ -146,7 +174,7 @@ export function layout() {
 
   /* only ONE east-west canal is left: it runs along the lakeside edge of the village. rows 1 to 6 are plain sidewalks now,
      and the river is the canal that divides the village in two. */
-  { const pts = []; for (let x = -166; x <= 166; x += 8) pts.push([x, laneZ(0, x) - 6]); addCanal(pts, 2.3); }
+  /* (the E-W canal that used to run here is gone: it is the row-0 street now, see the STREETS block at the end of layout()) */
 
   /* penthouses: two groups either side of the river, facing the last canal. 8 floors tall */
   const zr = z0 + 16 + NROWS * PITCH + 9.8, xrr = xr(zr);
@@ -162,16 +190,17 @@ export function layout() {
 
   /* shops: spread through the town between the houses, never next to each other */
   const shopOK = (x, z) => Math.abs(x - xr(z)) > 16 && Math.hypot(x - cx, z - cz) > 28 && Math.hypot(x - L.plaza.x, z - L.plaza.z) > 20 &&
-    Math.hypot(x - lc.x, z - lc.z) > 30 && baseH(x, z) > 1.2 && canalDist(x, z) > 5 &&
+    Math.hypot(x - lc.x, z - lc.z) > 30 && baseH(x, z) > 1.2 && canalDist(x, z) > 5 && !nearSquare(x, z, 9) && !crossBlock(x, z, 9) &&
     !L.pent.some(p => Math.hypot(x - p.x, z - p.z) < 17) && !L.castles.some(c => Math.hypot(x - c.x, z - c.z) < c.r + 10);
   const tryShop = (r, x, gap) => {
     if (L.shops.length >= 6) return;
-    const z = laneZ(r, x) + 9.6;
+    let z = laneZ(r, x) + 9.6;
     if (!shopOK(x, z)) return;
     if (L.shops.some(s => Math.hypot(x - s.x, z - s.z) < gap)) return;
+    const n = backOverlap(x, z, r, 3.8); z -= n;
     const h = Math.max(1.3, baseH(x, z)), i = L.shops.length;
     addPad(x, z, 5.2, h, 4);
-    L.shops.push({ i, x, z, y: h, yaw: Math.PI, name: KIND[i], k: 'shop', w: 9, d: 7, hgt: 18, row: r });
+    L.shops.push({ i, x, z, y: h, yaw: Math.PI, name: KIND[i], k: 'shop', w: 9, d: 7, hgt: 18, row: r, n });
   };
   for (const [r, x] of [[1, -122], [2, -72], [3, 40], [4, 112], [2, 126], [5, -24], [3, -110], [4, -60], [5, 70], [1, 84], [3, -40], [2, 22]]) tryShop(r, x, 34);
   for (let r = 0; r < NROWS && L.shops.length < 6; r++) for (let x = -150; x <= 150; x += 14) tryShop(r, x, 26);
@@ -189,9 +218,11 @@ export function layout() {
     if (Math.abs(c.x - xr(c.z)) < 10.5) return false;
     if (Math.hypot(c.x - cx, c.z - cz) < 19) return false;
     if (Math.hypot(c.x - L.plaza.x, c.z - L.plaza.z) < 14) return false;
+    if (nearSquare(c.x, c.z, 8)) return false;
     if (Math.hypot(c.x - lc.x, c.z - lc.z) < 26) return false;
     if (baseH(c.x, c.z) < 1.2) return false;
     if (canalDist(c.x, c.z) < 5) return false;
+    if (crossBlock(c.x, c.z, 4.6)) return false;
     for (const p of L.pent) if (Math.hypot(c.x - p.x, c.z - p.z) < 17) return false;
     for (const s of L.shops) if (Math.hypot(c.x - s.x, c.z - s.z) < 12) return false;
     for (const cs of L.castles) if (Math.hypot(c.x - cs.x, c.z - cs.z) < cs.r + 10) return false;
@@ -201,51 +232,65 @@ export function layout() {
   const front = c => Math.hypot(c.x - 24, (c.z - (z0 + 26)) * 1.6);
   const good = cands.filter(ok).sort((a, b) => Math.hypot(a.x, (a.z - (z0 + 56)) * 1.4) - Math.hypot(b.x, (b.z - (z0 + 56)) * 1.4)).slice(0, 400).sort((a, b) => front(a) - front(b));
   good.forEach((c, i) => {
+    const n = backOverlap(c.x, c.z, c.row, 4.3); c.z -= n; /* keep the house out of the street behind it */
     const h = baseH(c.x, c.z);
     addPad(c.x, c.z, 4.6, h, 4.5);
-    L.houses.push({ idx: i, x: c.x, z: c.z, y: h, yaw: c.yaw, w: 9, d: 8, hgt: 14, row: c.row });
+    L.houses.push({ idx: i, x: c.x, z: c.z, y: h, yaw: c.yaw, w: 9, d: 8, hgt: 14, row: c.row, n });
   });
 
   /* ---------- hillside quarters ----------
-     Villas scattered over the open meadow west and east of the village. No rows: every house is turned its own way (some look at the mountains,
-     the next one a bit toward the lake, the next toward the far hills), and every one has a little back garden behind it.
+     Tidy blocks of villas on the open meadow all round the lake. Every block is a neat grid: the houses stand in straight rows with equal spacing,
+     every front looks the same way (toward the lake, turned to the nearest of 8 compass directions so the rows run square), each has its little
+     back garden behind it and a sidewalk runs in front of every row, joined by one cross sidewalk, exactly like the village.
      They are claimable plots like the rest and are handed out after the village rows are full.
-     To move or resize a quarter, change x0/x1/z0/z1 (area) or n (how many) here. dirs = the directions the fronts look: [east, south]. */
-  const QS = [ /* messy hillside villas, spread all round the lake (edit n for more or fewer) */
-    { x0: -352, x1: -284, z0: -60, z1: 80, n: 7, dirs: [[-1, 0], [-.7, -.7], [-.8, .6], [0, -1], [-1, .25]] },
-    { x0: -352, x1: -284, z0: 110, z1: 230, n: 5, dirs: [[-1, 0], [-.8, .6], [0, -1]] },
-    { x0: 284, x1: 352, z0: -60, z1: 80, n: 7, dirs: [[1, 0], [.7, -.7], [.8, .6], [0, -1], [1, .25]] },
-    { x0: 284, x1: 352, z0: 110, z1: 230, n: 5, dirs: [[1, 0], [.8, .6], [0, -1]] },
-    { x0: -330, x1: -230, z0: -340, z1: -200, n: 6, dirs: [[-.5, .9], [0, 1], [.6, .8]] },
-    { x0: 230, x1: 330, z0: -340, z1: -200, n: 6, dirs: [[.5, .9], [0, 1], [-.6, .8]] },
-    { x0: -140, x1: 140, z0: -385, z1: -300, n: 6, dirs: [[0, 1], [.5, .9], [-.5, .9]] },
-    { x0: -300, x1: -120, z0: 240, z1: 340, n: 5, dirs: [[0, -1], [-.6, -.8], [.6, -.8]] },
-    { x0: 120, x1: 300, z0: 240, z1: 340, n: 5, dirs: [[0, -1], [.6, -.8], [-.6, -.8]] }
-  ];
-  let sd = 90210; const rnd = () => { sd = (sd * 1664525 + 1013904223) >>> 0; return sd / 4294967296; };
-  const villas = [];
-  for (const q of QS) {
-    let made = 0;
-    for (let t = 0; t < 1500 && made < q.n; t++) {
-      const x = q.x0 + rnd() * (q.x1 - q.x0), z = q.z0 + rnd() * (q.z1 - q.z0);
-      const dv = q.dirs[made % q.dirs.length], yaw = Math.atan2(dv[0], dv[1]) + (rnd() - .5) * .6; /* the front looks along (sin yaw, cos yaw) */
-      const gx = x - Math.sin(yaw) * 7, gz = z - Math.cos(yaw) * 7; /* centre of the back garden */
-      if (baseH(x, z) < 1.4 || baseH(gx, gz) < 1.2) continue;
-      if (Math.hypot(baseH(x + 6, z) - baseH(x - 6, z), baseH(x, z + 6) - baseH(x, z - 6)) / 12 > .2) continue; /* not on a steep slope */
-      if (L.castles.some(c => Math.hypot(x - c.x, z - c.z) < c.r + 26)) continue;
-      if (villas.some(v => Math.hypot(x - v.x, z - v.z) < 19 || Math.hypot(x - v.gx, z - v.gz) < 12 || Math.hypot(gx - v.x, gz - v.z) < 12)) continue;
-      const h = baseH(x, z);
-      addPad(x, z, 5.6, h, 4.5); addPad(gx, gz, 6.6, h, 5); addPad(x + Math.sin(yaw) * 7.5, z + Math.cos(yaw) * 7.5, 3.4, h, 4); /* house, back garden, front gate */
-      const v = { idx: L.houses.length, x, z, y: h, yaw, w: 9, d: 8, hgt: 14, row: -1, built: true, gx, gz, style: villas.length % 3 === 1 ? 'town' : 'chalet' };
-      villas.push(v); L.houses.push(v); made++;
+     To move or resize a block change its centre cx, cz or its cols (houses per row) and rows. Houses that would land in water or on a steep slope are skipped. */
+  const BLOCKS = []; /* the separate villa blocks are gone too */
+  const VS = 18, VR = 29, FRONT = 11.6; /* spacing along a row, spacing between rows, sidewalk distance in front of the house centre */
+  const villas = [], nearC = (x, z, m) => L.castles.some(c => Math.hypot(x - c.x, z - c.z) < c.r + m);
+  for (const bk of BLOCKS) {
+    let lx = LAKE0.x - bk.cx, lz = LAKE0.z - bk.cz; const ang = Math.round(Math.atan2(lx, lz) / (Math.PI / 4)) * (Math.PI / 4);
+    lx = Math.sin(ang); lz = Math.cos(ang); /* unit vector from the block to the lake: the way the fronts look */
+    const yaw = ang, tx = Math.cos(ang), tz = -Math.sin(ang); /* tx, tz: along a row */
+    for (let j = 0; j < bk.rows; j++) {
+      const rowPts = [];
+      for (let i = 0; i < bk.cols; i++) {
+        const along = (i - (bk.cols - 1) / 2) * VS, back = (j - (bk.rows - 1) / 2) * VR;
+        const x = bk.cx + tx * along - lx * back, z = bk.cz + tz * along - lz * back;
+        const gx = x - lx * 7, gz = z - lz * 7; /* centre of the back garden */
+        const h = baseH(x, z);
+        if (h < 1.4 || baseH(gx, gz) < 1.2) continue;
+        if (Math.hypot(baseH(x + 6, z) - baseH(x - 6, z), baseH(x, z + 6) - baseH(x, z - 6)) / 12 > .24) continue; /* not on a steep slope */
+        if (L.castles.some(c => Math.hypot(x - c.x, z - c.z) < c.r + 26)) continue;
+        addPad(x, z, 5.6, h, 4.5); addPad(gx, gz, 6.6, h, 5); addPad(x + lx * 7.5, z + lz * 7.5, 3.4, h, 4); /* house, back garden, front gate */
+        const v = { idx: L.houses.length, x, z, y: h, yaw, w: 9, d: 8, hgt: 14, row: -1, built: true, gx, gz, style: (i + j) % 3 === 1 ? 'town' : 'chalet' };
+        villas.push(v); L.houses.push(v); rowPts.push(v);
+      }
+      if (!rowPts.length) continue;
+      /* sidewalk in front of the row, running one house further than the first and last house */
+      const first = rowPts[0], last = rowPts[rowPts.length - 1];
+      const sx = (p, k) => [p.x + lx * FRONT + tx * k, p.z + lz * FRONT + tz * k];
+      const a0 = sx(first, -VS * .75), a1 = sx(last, VS * .75), n = Math.max(2, Math.ceil(Math.hypot(a1[0] - a0[0], a1[1] - a0[1]) / 4));
+      let cur = []; const flush = () => { if (cur.length > 2) L.walks.push({ pts: cur, w: 2.4, kind: 'hill' }); cur = []; };
+      for (let k = 0; k <= n; k++) {
+        const x = a0[0] + (a1[0] - a0[0]) * k / n, z = a0[1] + (a1[1] - a0[1]) * k / n;
+        if (H(x, z) < 1.4 || nearC(x, z, 4)) flush(); else cur.push([x, z]);
+      }
+      flush();
+    }
+    /* the cross sidewalk joining the rows of a two-row block, halfway along the row, running in the gap between two houses */
+    if (bk.rows > 1 && bk.cols > 1) {
+      const m = Math.floor(bk.cols / 2) - .5, along = (m - (bk.cols - 1) / 2) * VS;
+      const ends = [0, bk.rows - 1].map(j => { const back = (j - (bk.rows - 1) / 2) * VR; return [bk.cx + tx * along - lx * back + lx * FRONT, bk.cz + tz * along - lz * back + lz * FRONT]; });
+      const pts = [], n = Math.max(2, Math.ceil(Math.hypot(ends[1][0] - ends[0][0], ends[1][1] - ends[0][1]) / 4));
+      for (let k = 0; k <= n; k++) { const x = ends[0][0] + (ends[1][0] - ends[0][0]) * k / n, z = ends[0][1] + (ends[1][1] - ends[0][1]) * k / n; if (H(x, z) > 1.4 && !nearC(x, z, 4)) pts.push([x, z]); }
+      if (pts.length > 2) L.walks.push({ pts, w: 1.8, kind: 'hill' });
     }
   }
-
 
   /* ---------- hamlets all around the lake ----------
      Small clean groups (3 by 2, equal spacing, fronts to the lake) spread round the whole shore, so the lake looks like it sits in the middle of an inhabited island.
      Townhouses (the photo) mixed with Swiss chalets (the video). Edit HAM to move a hamlet: [centre x, centre z]. Hamlets on steep or wet ground just lose those houses. */
-  const HAM = [[-250, -250], [-190, -330], [-70, -345], [80, -345], [190, -330], [250, -250], [305, -130], [305, 20], [262, 130], [185, 225], [60, 245], [-70, 245], [-190, 225], [-262, 130], [-305, 20], [-305, -130]];
+  const HAM = []; /* the isolated lakeside hamlets are gone: the town is one continuous quarter now (see the old-town districts below) */
   HAM.forEach((hc, hi) => {
     let lx = LAKE0.x - hc[0], lz = LAKE0.z - hc[1]; const ll = Math.hypot(lx, lz); lx /= ll; lz /= ll;
     const yaw = Math.atan2(lx, lz), tx = -lz, tz = lx;
@@ -260,6 +305,55 @@ export function layout() {
       L.houses.push({ idx: L.houses.length, x, z, y: h, yaw, w: 9, d: 8, hgt: 14, row: -1, built: true, style: (i + j + hi) % 3 === 1 ? 'chalet' : 'town' });
     }
   });
+
+  /* ---------- old town districts: 100 empty houses, west and east of the village ----------
+     Two cobbled quarters like the photo: two pedestrian streets (a wide cobbled sidewalk, no cars) with townhouses facing each other on both sides,
+     and a green park strip between the streets with a fountain square and a gazebo square (extras.js builds the gazebos, benches and cobbles).
+     All of these houses are claimable plots handed out LAST, so they stay empty until the rest is taken.
+     To move a district change cx / zc; ROWS is the number of houses on each side of a street (the target total is 100, extra houses are dropped). */
+  const OLD = [{ cx: -222, zc: 45 }, { cx: 226, zc: 45 }], OROWS = 17, OSP = 13.5, OOFF = [[-52, Math.PI / 2], [-20, -Math.PI / 2], [20, Math.PI / 2], [52, -Math.PI / 2]], OSTREET = 36;
+  L.gazebos = [];
+  const oldCand = [];
+  for (const d of OLD) {
+    const zf = d.zc - 32, zg = d.zc + 32; /* fountain square, gazebo square (both in the park strip between the two streets) */
+    L.ponds = L.ponds || []; L.ponds.push({ x: d.cx, z: d.zc, rx: 9, rz: 14 }); addPad(d.cx, d.zc, 15, undefined, 6); /* the park pond between the two squares */
+    for (const [zq, kind] of [[zf, 'f'], [zg, 'g']]) {
+      const q = { x: d.cx, z: zq, r: 13, disc: 11 }; addPad(q.x, q.z, 11, undefined, 6);
+      if (kind === 'f') { L.squares.push(q); plazas.push(q); } else { L.gazebos.push(q); plazas.push(q); }
+    }
+    for (const [off, yaw] of OOFF) for (let k = 0; k < OROWS; k++) {
+      const x = d.cx + off, z = d.zc + (k - (OROWS - 1) / 2) * OSP, h = baseH(x, z);
+      if (Math.abs(off) === 20 && (Math.abs(z - zf) < 9 || Math.abs(z - zg) < 9)) continue; /* the cross walks to the squares pass here */
+      if (h < 1.6 || baseH(x - Math.sin(yaw) * 6, z - Math.cos(yaw) * 6) < 1.4) continue;
+      if (Math.hypot(baseH(x + 6, z) - baseH(x - 6, z), baseH(x, z + 6) - baseH(x, z - 6)) / 12 > .2) continue;
+      if (L.castles.some(c => Math.hypot(x - c.x, z - c.z) < c.r + 14)) continue;
+      if (L.houses.some(v => Math.hypot(x - v.x, z - v.z) < 13) || L.shops.some(v => Math.hypot(x - v.x, z - v.z) < 13) || L.pent.some(v => Math.hypot(x - v.x, z - v.z) < 16)) continue;
+      oldCand.push({ x, z, yaw, h, d });
+    }
+  }
+  /* keep exactly 100 (the ones nearest the district centres), then drop them on the map */
+  oldCand.sort((a, b) => Math.hypot(a.x - a.d.cx, (a.z - a.d.zc) * .8) - Math.hypot(b.x - b.d.cx, (b.z - b.d.zc) * .8));
+  const oldHouses = oldCand.slice(0, 100);
+  oldHouses.forEach(c => {
+    addPad(c.x, c.z, 5.6, c.h, 4.5);
+    const hr = Math.abs(Math.sin(c.x * 12.9898 + c.z * 78.233) * 43758.5453) % 1; /* a fixed pseudo-random number per house: mixes the two house styles and turns each house a hair */
+    L.houses.push({ idx: L.houses.length, x: c.x, z: c.z, y: c.h, yaw: c.yaw + (hr - .5) * .06, w: 9, d: 8, hgt: 14, row: -1, built: true, style: hr < .38 ? 'chalet' : 'town', old: true });
+  });
+  /* cobbled sidewalks: one wide pedestrian walk down the middle of each street, a thin one down the park, and cross walks to the two squares */
+  const OCOB = '#b9a594';
+  for (const d of OLD) {
+    const mine = oldHouses.filter(c => c.d === d); if (!mine.length) continue;
+    const z0 = Math.min(...mine.map(c => c.z)) - 8, z1 = Math.max(...mine.map(c => c.z)) + 8;
+    const line = (ax, az, bx, bz, w, kind) => {
+      const n = Math.max(2, Math.ceil(Math.hypot(bx - ax, bz - az) / 4)); let cur = [];
+      const flush = () => { if (cur.length > 2) L.walks.push({ pts: cur, w, kind: 'hill', col: OCOB }); cur = []; };
+      for (let k = 0; k <= n; k++) { const x = ax + (bx - ax) * k / n, z = az + (bz - az) * k / n; if (H(x, z) < 1.4 || nearC(x, z, 4)) flush(); else cur.push([x, z]); }
+      flush();
+    };
+    for (const sx of [-OSTREET, OSTREET]) line(d.cx + sx, z0, d.cx + sx, z1, 10);
+    for (const sx of [-12.5, 12.5]) line(d.cx + sx, z0, d.cx + sx, z1, 2.4);
+    for (const zq of [d.zc - 32, d.zc + 32]) line(d.cx - OSTREET, zq, d.cx + OSTREET, zq, 3);
+  }
 
   /* lakeview cottages: 4 terraced rows on the north shore slope, all facing the lake */
   const CROW = [-198, -216, -234, -252];
@@ -296,8 +390,9 @@ export function layout() {
      Each sidewalk now runs right up to the end of the bridge (exactly 10 from its centre), so there is no gap of bare grass any more. */
   for (let r = 0; r <= NROWS; r++) {
     const br = L.bridges[r], gx = [];
-    for (let x = -160; x <= 160; x += 4) if (Math.abs(x - br.x) >= 10.8) gx.push([x, 0]);
+    for (let x = -160; x <= 160; x += 4) if (Math.abs(x - br.x) >= 10.8 && !(r < NROWS && XSTREETS.some(X => Math.abs(x - X) < XW + .6))) gx.push([x, 0]);
     gx.push([br.x - 10, 1], [br.x + 10, 2]); /* 1 = last point before the bridge, 2 = first point after it */
+    if (r < NROWS) for (const X of XSTREETS) gx.push([X - XW, 1], [X + XW, 2]); /* the sidewalk stops at a cross street (a crosswalk goes there) */
     gx.sort((a, b) => a[0] - b[0]);
     let cur = []; const flush = () => { if (cur.length > 2) L.walks.push({ pts: cur, w: 2.4, kind: 'row', row: r }); cur = []; };
     for (const [x, tag] of gx) {
@@ -316,12 +411,42 @@ export function layout() {
       if (Math.abs(x - xr(z)) < 8 || nearCastle(x, z, 2) || H(x, z) < 1.4 || canalDist(x, z) < 3) flush(); else cur.push([x, z]);
     }
     flush(); }
-  /* footbridges: only where both ends land on dry ground (the shore curves a lot), at least 38 apart */
-  for (let x = -150; x <= 150; x += 2) {
-    const z = laneZ(0, x) - 6, n = H(x, z - 6.75), so = H(x, z + 6.75);
-    if (n < 1.6 || so < 1.6 || Math.abs(x - xr(z)) < 16 || nearCastle(x, z, 6) || L.fbr.some(f => Math.abs(f.x - x) < 38) || Math.abs(x - L.yachtPier.x) < 8) continue;
-    L.fbr.push({ x, z, y: Math.max(n, so) });
+  /* (no footbridges: there is no E-W canal to cross any more) */
+
+  /* ---------- STREETS: polylines for streets.js, plus the crosswalk list ---------- */
+  L.streets = []; L.xwalks = [];
+  const roadOK = (x, z, bridgeRow) => !(inChurch(x, z) || nearCastle(x, z, 5.5) || H(x, z) < 1.2 || (!bridgeRow && canalDist(x, z) < 3.5));
+  for (let r = 0; r <= NROWS; r++) { /* one street in front of each row of houses. Row 3 ends at the big bridge, the others at the river bank */
+    const br = L.bridges[r]; let cur = [];
+    const flush = () => { if (cur.length > 1) L.streets.push({ pts: cur, k: 'ew', row: r }); cur = []; };
+    for (let x = -166; x <= 166; x += 3) {
+      const z = roadZ(r, x);
+      if ((r === 3 && Math.abs(x - br.x) < 10.4) || !roadOK(x, z, r === 3) || (r !== 3 && Math.abs(x - xr(z)) < 8) || Math.abs(roadZ(r, x + 4) - roadZ(r, x - 4)) / 8 > .55) { flush(); continue; } /* last test: the street ends where the shore curves away (too steep for a straight street) */
+      cur.push([x, z]);
+    }
+    flush();
   }
+  for (const X of XSTREETS) { /* the cross streets, from the row-0 street to the row-6 street */
+    let cur = []; const z1 = roadZ(NROWS, X);
+    const flush = () => { if (cur.length > 1) L.streets.push({ pts: cur, k: 'ns', x: X }); cur = []; };
+    for (let z = roadZ(0, X); z <= z1 + .01; z += 3) { if (!roadOK(X, z, false)) flush(); else cur.push([X, z]); }
+    if (cur.length && cur[cur.length - 1][1] < z1 - .5 && roadOK(X, z1, false)) cur.push([X, z1]);
+    flush();
+  }
+  /* crosswalks: zebra stripes on the cross street either side of each row street, and on each row street either side of each cross street */
+  const onStreet = (x, z) => L.streets.some(s => polyDist(s.pts, x, z) < (s.k === 'ew' ? ROAD_W : XW * 2) / 2 + .4);
+  const tang = (r, x) => { const dz = roadZ(r, x + 1) - roadZ(r, x - 1); const l = Math.hypot(2, dz); return [2 / l, dz / l]; };
+  for (const X of XSTREETS) for (let r = 0; r <= NROWS; r++) {
+    const zc = roadZ(r, X); if (!onStreet(X, zc)) continue;
+    const off = ROAD_W / 2 + 1.2;
+    if (r > 0 && onStreet(X, zc - off - 1)) L.xwalks.push({ x: X, z: zc - off, dx: 0, dz: 1, w: XW * 2 });
+    if (r < NROWS && onStreet(X, zc + off + 1)) L.xwalks.push({ x: X, z: zc + off, dx: 0, dz: 1, w: XW * 2 });
+    for (const sgn of [-1, 1]) {
+      const x = X + sgn * (XW + 1.2), [tx, tz] = tang(r, x), z = roadZ(r, x);
+      if (onStreet(x + sgn * 1.5, roadZ(r, x + sgn * 1.5))) L.xwalks.push({ x, z, dx: tx, dz: tz, w: ROAD_W });
+    }
+  }
+  L.inter = []; for (const X of XSTREETS) for (let r = 0; r <= NROWS; r++) { const z = roadZ(r, X); if (onStreet(X, z)) L.inter.push({ x: X, z }); }
   return L;
 }
 const KIND = ['Bakery', 'Nail salon', 'Hair salon', 'Cafe', 'Flower shop', 'Barber'];
