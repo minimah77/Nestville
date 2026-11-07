@@ -29,6 +29,7 @@ function lane(b, pts, w, step, curb, col) {
 
 export function paths(b, L) {
   const cot = L.cot; if (!cot.length) return;
+  b.at(0, 0, 0, 0); /* reset the builder transform: the lamps built just before left it shifted, which dragged every stair and sidewalk away from the cottages (into the water) */
   const rowZ = L.walk.z, ROWS = rowZ.length, prom = L.walk.prom, X0 = L.walk.x0, X1 = L.walk.x1;
   /* the lakeside promenade and a sidewalk in front of each terrace row */
   lane(b, [[X0, prom], [X1, prom]], 3.2, 1.6, 0, WALK);
