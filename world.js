@@ -175,7 +175,7 @@ export function layout() {
   for (const [r, x] of [[1, -122], [2, -72], [3, 40], [4, 112], [2, 126], [5, -24], [3, -110], [4, -60], [5, 70], [1, 84], [3, -40], [2, 22]]) tryShop(r, x, 34);
   for (let r = 0; r < NROWS && L.shops.length < 6; r++) for (let x = -150; x <= 150; x += 14) tryShop(r, x, 26);
 
-  /* houses: rows facing the canals */
+  /* houses: rows facing the sidewalks */
   const cands = [];
   for (let r = 0; r <= NROWS; r++) {
     const rnd = (a) => { const s = Math.sin(a * 91.7 + r * 13.1) * 9137.3; return s - Math.floor(s); };
@@ -196,9 +196,9 @@ export function layout() {
     for (const cs of L.castles) if (Math.hypot(c.x - cs.x, c.z - cs.z) < cs.r + 10) return false;
     return true;
   };
-  /* same 120 plots as before, handed out front-row first so early residents are in open view, not behind the church or castle */
+  /* EVERY valid plot is used now (about 149 houses, it was capped at 120), handed out front-row first so early residents are in open view, not behind the church or castle */
   const front = c => Math.hypot(c.x - 24, (c.z - (z0 + 26)) * 1.6);
-  const good = cands.filter(ok).sort((a, b) => Math.hypot(a.x, (a.z - (z0 + 56)) * 1.4) - Math.hypot(b.x, (b.z - (z0 + 56)) * 1.4)).slice(0, 120).sort((a, b) => front(a) - front(b));
+  const good = cands.filter(ok).sort((a, b) => Math.hypot(a.x, (a.z - (z0 + 56)) * 1.4) - Math.hypot(b.x, (b.z - (z0 + 56)) * 1.4)).slice(0, 400).sort((a, b) => front(a) - front(b));
   good.forEach((c, i) => {
     const h = baseH(c.x, c.z);
     addPad(c.x, c.z, 4.6, h, 4.5);

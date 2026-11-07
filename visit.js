@@ -1,5 +1,5 @@
-/* Nestville visits: every unsold house, shop, cottage and penthouse shows a small green light.
-   Tap it, then "Look inside" to walk around the empty home before buying.
+/* Nestville visits: tap any unsold house, shop, cottage or penthouse, then "Look inside" to walk around the empty home before buying.
+   (The green dots are gone: empty houses are marked by the small sign from extras.js.)
    Runs next to town.js and reads the same scene (window.__nv). */
 import * as THREE from './lib.js';
 import { buildRoom } from './rooms.js';
@@ -17,29 +17,12 @@ ready(nv => {
   const priceOf = e => e.kind === 'ph' ? PH_PRICES[e.ref.i] : e.kind === 'shop' ? SHOP_PRICE : e.kind === 'cot' ? COT_PRICES[e.ref.i] : 0;
   const word = { house: 'house', shop: 'shop', cot: 'cottage', ph: 'penthouse' };
 
-  /* ---------- green "this one is empty" lights ---------- */
-  const sg = new THREE.SphereGeometry(1, 10, 8);
-  const dots = new THREE.InstancedMesh(sg, new THREE.MeshBasicMaterial({ color: '#38e08a', fog: false }), 400);
-  const halo = new THREE.InstancedMesh(sg, new THREE.MeshBasicMaterial({ color: '#38e08a', transparent: true, opacity: .3, depthWrite: false, fog: false }), 400);
-  [dots, halo].forEach(m => { m.frustumCulled = false; m.count = 0; m.renderOrder = 7; scene.add(m); });
-  const dm = new THREE.Object3D(); let fr = 0, T0 = performance.now();
-  function updateDots(now) {
-    const list = ents.filter(empty).slice(0, 400), t = (now - T0) / 1000;
-    list.forEach((e, i) => {
-      const x = e.x, y = e.y + (e.ref.hgt || 12) + 2.4, z = e.z, d = Math.hypot(camera.position.x - x, camera.position.y - y, camera.position.z - z);
-      const r = Math.max(.45, d * .0055), p = 1 + Math.sin(t * 2.6 + i) * .12;
-      dm.position.set(x, y, z); dm.rotation.set(0, 0, 0); dm.scale.setScalar(r); dm.updateMatrix(); dots.setMatrixAt(i, dm.matrix);
-      dm.scale.setScalar(r * 2.1 * p); dm.updateMatrix(); halo.setMatrixAt(i, dm.matrix);
-    });
-    dots.count = halo.count = list.length; dots.instanceMatrix.needsUpdate = halo.instanceMatrix.needsUpdate = true;
-  }
-
   /* ---------- "Look inside" button on the card ---------- */
   const card = $('card');
   function addBtn() {
     const e = nv.sel; if (!e || visiting || !empty(e) || card.querySelector('[data-visit]')) return;
     const w = word[e.kind]; if (!w) return;
-    card.insertAdjacentHTML('beforeend', '<div style="display:flex;align-items:center;gap:8px;margin-top:10px"><span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#1c7a4c"><i style="width:8px;height:8px;border-radius:50%;background:#38e08a;box-shadow:0 0 0 3px rgba(56,224,138,.3)"></i>This ' + w + ' is empty</span><span style="flex:1"></span><button data-visit class="pb g" style="height:28px;padding:0 11px;font-size:12px;border-radius:12px">Look inside</button></div>');
+    card.insertAdjacentHTML('beforeend', '<div style="display:flex;align-items:center;gap:8px;margin-top:10px"><span style="font-size:12px;font-weight:700;color:#1c7a4c">This ' + w + ' is empty</span><span style="flex:1"></span><button data-visit class="pb g" style="height:28px;padding:0 11px;font-size:12px;border-radius:12px">Look inside</button></div>');
   }
   new MutationObserver(addBtn).observe(card, { childList: true });
   card.addEventListener('click', ev => { if (ev.target.closest('[data-visit]') && nv.sel) enter(nv.sel); });
@@ -146,7 +129,6 @@ ready(nv => {
     scene.add(outer);
     scene.fog = null; hemi = scene.children.find(o => o.isHemisphereLight);
     if (hemi) { hemiSave = [hemi.intensity, hemi.groundColor.getHex()]; hemi.intensity = 1.55; hemi.groundColor.set('#fff1dc'); }
-    dots.visible = halo.visible = false;
     HIDE.forEach(id => { const el = $(id); if (el) el.style.display = 'none'; });
     const price = priceOf(e), title = room.title + ' · ' + room.sub;
     const btn = (id, ic, label) => '<button class="ib" data-cam="' + id + '" aria-label="' + label + '" title="' + label + '"><svg viewBox="0 0 24 24">' + ico[ic] + '</svg></button>';
@@ -163,7 +145,7 @@ ready(nv => {
     scene.fog = snap.fog; if (hemi && hemiSave) { hemi.intensity = hemiSave[0]; hemi.groundColor.setHex(hemiSave[1]); }
     camera.near = 1; camera.far = 3500; camera.quaternion.identity(); camera.updateProjectionMatrix();
     Object.assign(nv.cam, snap.cam); Object.assign(nv.goal, snap.goal); nv.view.mode = snap.mode;
-    dots.visible = halo.visible = true; bar.style.display = 'none'; hint.style.display = 'none';
+    bar.style.display = 'none'; hint.style.display = 'none';
     HIDE.forEach(id => { const el = $(id); if (el) el.style.display = ''; });
     const e = ent; ent = null;
     if (toRoof && e && e.kind === 'ph') { nv.select(null); nv.view.pi = e.ref.i; nv.setView('ph'); }
@@ -177,7 +159,4 @@ ready(nv => {
     else if (b.dataset.cam === 'roof') leave(true);
     else if (b.dataset.cam) setMode('fp', +b.dataset.cam.slice(2));
   });
-
-  /* ---------- loop for the green lights ---------- */
-  (function loop(now) { requestAnimationFrame(loop); if (!visiting && (++fr % 3 === 0)) updateDots(now); })(performance.now());
 });

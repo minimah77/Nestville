@@ -1,9 +1,10 @@
 /* Nestville town: renderer, terrain, camera, UI */
 import * as THREE from './lib.js';
-import { paths } from './paths.js';
-import { MB, chalet, openLot, penthouse, castleLake, castleEast, castleIsland, watchtower, church, fountain, shop, cottage, bridge, pier, boat, lamp, K } from './build.js';
+import { paths, pavement } from './paths.js';
+import { MB, chalet, openLot, penthouse, castleLake, castleEast, castleIsland, watchtower, church, fountain, shop, cottage, pier, boat, lamp, K } from './build.js';
 import { H, B, TOWN, L, layout, baseH, xr, Rs, roadDist, plazas, sz, laneZ, canals, canalDist, WL, RIVER_Z0, RIVER_Z1, sm, fbm } from './world.js';
 import { load, save, PH_PRICES, SHOP_PRICE, COT_PRICES, KINDS, IG_DM, fmt, avatar, stats, rng } from './shared.js';
+import './folks.js'; /* the people strolling on the sidewalks */
 
 const $ = id => document.getElementById(id);
 const S = load();
@@ -83,6 +84,8 @@ function buildTerrain(step) {
         const d = roadDist(x, z); if (d < 3.4) o.lerp(C.path, 1 - sm(1.7, 3.4, d));
         for (const p of plazas) { const dd = Math.hypot(x - p.x, z - p.z); if (dd < p.r) o.lerp(C.cob, 1 - sm(p.r - 2, p.r, dd)); }
       }
+      /* the ground under every sidewalk (both villages) is painted pavement, so even if a blade of terrain shows through it is grey, never green */
+      if (x > -200 && x < 200 && z > -275 && z < 200) { const pv = pavement(x, z); if (pv.col && pv.d < 1.1) o.lerp(pv.col, 1 - sm(.1, 1.1, pv.d)); }
     }
     col[k * 3] = o.r; col[k * 3 + 1] = o.g; col[k * 3 + 2] = o.b;
   }
@@ -146,6 +149,8 @@ canals.forEach((c, ci) => {
 
 /* ---------- entities ---------- */
 layout();
+/* distance along every sidewalk, so trees and lamps can be placed along it */
+L.walks.forEach(w => { w.cum = [0]; for (let i = 1; i < w.pts.length; i++) w.cum.push(w.cum[i - 1] + Math.hypot(w.pts[i][0] - w.pts[i - 1][0], w.pts[i][1] - w.pts[i - 1][1])); w.len = w.cum[w.cum.length - 1]; });
 L.church.y = baseH(L.church.x, L.church.z + 1);
 const plazaY = baseH(L.plaza.x, L.plaza.z);
 const ents = [];
@@ -187,12 +192,7 @@ function buildStatic() {
   L.castles.forEach(c => ({ lake: castleLake, east: castleEast, island: castleIsland, tower: watchtower })[c.id](b, c));
   church(b, L.church);
   fountain(b, L.plaza, plazaY);
-  /* bridges over the river */
-  for (const r of [0, 2, 4]) {
-    let bz = laneZ(r, 12) + 8.75; bz = laneZ(r, xr(bz)) + 8.75;
-    const cx = xr(bz), bank = Math.max(baseH(cx - 11, bz), baseH(cx + 11, bz));
-    bridge(b, cx, bank - .8, bz);
-  }
+  /* the river bridges (one per row), the footbridges and all sidewalks are built in paths.js: no second set of bridges here */
   pier(b, L.pier, .9); pier(b, L.yachtPier, .9);
   for (let x = -52; x <= 40; x += 34.5) { const z = sz(x) + 4.2; lamp(b, x, Math.max(1.2, baseH(x, z)), z); }
   lampSpots().forEach(p => lamp(b, p[0], p[1], p[2]));
@@ -237,67 +237,61 @@ const conGeo = (() => { const b = new MB(); b.cyl(0, 0, 0, .36, 2.2, 5, '#6b4a32
 const brdGeo = (() => { const b = new MB(); b.cyl(0, 0, 0, .42, 3, 5, '#6b4a32'); b.cone(0, 2.2, 0, 2.5, 2.6, 8, '#ffffff', 3.1); b.cone(0, 4.7, 0, 3.1, 2.4, 8, '#ffffff', 1.7); return b.mesh(matV).geometry; })();
 const BRD = ['#6db04a', '#7cba50', '#5ea244', '#8bc14f', '#d9a53a', '#d9703a', '#c9482f'].map(c => new THREE.Color(c));
 
-/* slim sidewalk tree for the canal quays */
+/* slim sidewalk tree */
 const strGeo = (() => { const b = new MB(); b.cyl(0, 0, 0, .22, 1.9, 5, '#6b4a32'); b.cone(0, 1.3, 0, 1.3, 1.9, 8, '#ffffff', 1); b.cone(0, 3, 0, 1.2, 2, 8, '#ffffff', .6); b.cone(0, 4.7, 0, .85, 1.5, 8, '#ffffff'); return b.mesh(matV).geometry; })();
 const brdTint = (t, cg) => { const p = t[4] < .12 ? BRD[4 + ((t[4] * 100) | 0) % 3] : BRD[((t[4] * 31) | 0) % 4]; return cg.copy(p).multiplyScalar(.9 + t[3] * .1); };
+
+/* the village has no streets and (almost) no canals any more, so trees and lamps follow the SIDEWALKS.
+   They stand on the north side of each sidewalk: that is the empty strip behind the row of houses in front. The south side
+   is the garden and the front doors, so it stays clear. Both keep away from houses, shops, bridges, the church and the castles. */
 function streetSpots() {
-  const blk = [], out = [], r = rng(515151);
-  L.houses.forEach(h => blk.push([h.x, h.z, 7]));
-  L.shops.forEach(s => blk.push([s.x, s.z, 7.4]));
+  const out = [], r = rng(515151), blk = [], boxes = [];
+  L.houses.forEach(h => boxes.push([h.x, h.z, 7.2, 5.4]));
+  L.shops.forEach(s => boxes.push([s.x, s.z, 7.2, 5.4]));
   L.pent.forEach(p => blk.push([p.x, p.z, 8.6]));
   L.castles.forEach(c => blk.push([c.x, c.z, c.r + 3]));
   blk.push([L.church.x, L.church.z, 14], [L.plaza.x, L.plaza.z, 11]);
-  for (const k of [0, 2, 4]) { let bz = laneZ(k, 12) + 8.75; bz = laneZ(k, xr(bz)) + 8.75; blk.push([xr(bz), bz, 11]); }
+  L.bridges.forEach(br => blk.push([br.x, br.z, 12]));
   const free = (x, z) => {
     if (H(x, z) < .9 || canalDist(x, z) < 2.4) return false;
+    for (const q of boxes) if (Math.abs(x - q[0]) < q[2] && Math.abs(z - q[1]) < q[3]) return false;
     for (const e of blk) if (Math.hypot(x - e[0], z - e[1]) < e[2]) return false;
     for (const o of out) if (Math.hypot(x - o[0], z - o[2]) < 6.5) return false;
     return true;
   };
-  canals.forEach(c => {
-    const wide = c.w > 3, step = wide ? 28 : 24; /* sparse street trees */
-    for (let s = wide ? 8 : 11.6; s < c.len - 4; s += step) {
-      const p = pathAt(c, s), tx = p[2], tz = p[3];
-      for (const side of [1, -1]) {
-        const lat = side * (c.w + 2.7);
-        for (const off of [0, 1.3, -1.3, 2.6, -2.6, 3.9, -3.9]) {
-          const x = p[0] + tx * off - tz * lat, z = p[1] + tz * off + tx * lat;
-          if (free(x, z)) { out.push([x, H(x, z), z, .85 + r() * .35, r()]); break; }
-        }
-      }
+  L.walks.forEach(w => {
+    const lat = -(w.w / 2 + 1.9); /* negative = north side */
+    for (let s = 9 + r() * 8; s < w.len - 4; s += 22 + r() * 8) {
+      const p = pathAt(w, s), x = p[0] - p[3] * lat, z = p[1] + p[2] * lat;
+      if (free(x, z)) out.push([x, H(x, z), z, .85 + r() * .35, r()]);
     }
   });
   return out;
 }
 
-/* street lamps along the canal quays: clear of doors, trees, bridges and the church square */
+/* street lamps along the sidewalks: clear of houses, trees, bridges and the church square */
 function lampSpots() {
-  const trees = streetSpots(), blk = [], doors = [], out = [];
+  const trees = streetSpots(), blk = [], boxes = [], out = [];
   L.pent.forEach(p => blk.push([p.x, p.z, 8.6]));
   L.castles.forEach(c => blk.push([c.x, c.z, c.r + 3]));
   blk.push([L.church.x, L.church.z, 14], [L.plaza.x, L.plaza.z, 11]);
-  for (const k of [0, 2, 4]) { let bz = laneZ(k, 12) + 8.75; bz = laneZ(k, xr(bz)) + 8.75; blk.push([xr(bz), bz, 11]); }
-  L.houses.forEach(h => doors.push([h.x + Math.sin(h.yaw) * 4.9, h.z + Math.cos(h.yaw) * 4.9, 2.7]));
-  L.shops.forEach(s => doors.push([s.x + 2.8 * Math.cos(s.yaw) + 5 * Math.sin(s.yaw), s.z - 2.8 * Math.sin(s.yaw) + 5 * Math.cos(s.yaw), 3.6]));
-  const boxes = [...L.houses.map(h => [h.x, h.z, h.yaw, 5.4]), ...L.shops.map(s => [s.x, s.z, s.yaw, 5.2])]; /* never inside a house or shop body */
+  L.bridges.forEach(br => blk.push([br.x, br.z, 12]));
+  L.houses.forEach(h => boxes.push([h.x, h.z, 5.6, 5.2]));
+  L.shops.forEach(s => boxes.push([s.x, s.z, 5.6, 5.2]));
   const ok = (x, z) => {
     if (H(x, z) < .9 || canalDist(x, z) < 1.9) return false;
-    for (const q of boxes) { const dx = x - q[0], dz = z - q[1], lx = dx * Math.cos(q[2]) - dz * Math.sin(q[2]), lz = dx * Math.sin(q[2]) + dz * Math.cos(q[2]); if (Math.abs(lx) < q[3] && lz < 5 && lz > -5.2) return false; }
+    for (const q of boxes) if (Math.abs(x - q[0]) < q[2] && Math.abs(z - q[1]) < q[3]) return false;
     for (const e of blk) if (Math.hypot(x - e[0], z - e[1]) < e[2]) return false;
-    for (const d of doors) if (Math.hypot(x - d[0], z - d[1]) < d[2]) return false;
     for (const q of trees) if (Math.hypot(x - q[0], z - q[2]) < 2.4) return false;
-    for (const o of out) if (Math.hypot(x - o[0], z - o[2]) < 30) return false;
+    for (const o of out) if (Math.hypot(x - o[0], z - o[2]) < 20) return false;
     return true;
   };
-  canals.forEach(c => {
-    for (const side of [1, -1]) {
-      let last = side > 0 ? -60 : -30;
-      const lat = side * (c.w + 2.1);
-      for (let s = 4; s < c.len - 3; s += 1.4) {
-        if (s - last < 60) continue;
-        const p = pathAt(c, s), x = p[0] - p[3] * lat, z = p[1] + p[2] * lat;
-        if (ok(x, z)) { out.push([x, Math.max(1.2, H(x, z)), z]); last = s; }
-      }
+  L.walks.forEach(w => {
+    const lat = -(w.w / 2 + .9); let last = -999;
+    for (let s = 6; s < w.len - 3; s += 2) {
+      if (s - last < 44) continue;
+      const p = pathAt(w, s), x = p[0] - p[3] * lat, z = p[1] + p[2] * lat;
+      if (ok(x, z)) { out.push([x, Math.max(1.2, H(x, z)), z]); last = s; }
     }
   });
   return out;
@@ -313,7 +307,7 @@ function plantTrees(n) {
     tries++;
     const x = -330 + r() * 660, z = -330 + r() * 710, h = H(x, z);
     if (h < 1.7 || h > 95) continue;
-    if (x > TOWN.x0 && x < TOWN.x1 && z > TOWN.z0 && z < 150) continue; /* the village: trees only along the canals */
+    if (x > TOWN.x0 && x < TOWN.x1 && z > TOWN.z0 && z < 150) continue; /* the village: trees only along the sidewalks */
     if (Math.abs(x) < 125 && z > -285 && z < -165) continue; /* the cottage district and its shore stay open */
     const f = fbm(x * .022 + 7, z * .022 + 2, 3);
     if (f < .44 && h < 60 && r() > .2) continue;
@@ -366,12 +360,13 @@ const CB_TINT = ['#ffffff', '#ffe0a0', '#bfe3f2', '#ffc2b5', '#cfe9c8'].map(c =>
 const canalBoats = [];
 canals.forEach(c => { c.cum = [0]; for (let i = 1; i < c.pts.length; i++) c.cum.push(c.cum[i - 1] + Math.hypot(c.pts[i][0] - c.pts[i - 1][0], c.pts[i][1] - c.pts[i - 1][1])); c.len = c.cum[c.cum.length - 1]; });
 {
+  /* only two canals are left (the river and the lakeside one), so every canal gets boats */
   const r = rng(909);
-  canals.forEach((c, ci) => { if (ci % 2) return; const n = Math.max(1, Math.round(c.len / 120)), v = 3.2 + (ci % 3) * .7; for (let k = 0; k < n; k++) canalBoats.push({ c, u0: ((k + r() * .4) / n) * c.len * 2, v, lat: .85, t: (r() * 5) | 0 }); });
+  canals.forEach((c, ci) => { const n = Math.max(1, Math.round(c.len / 120)), v = 3.2 + (ci % 3) * .7; for (let k = 0; k < n; k++) canalBoats.push({ c, u0: ((k + r() * .4) / n) * c.len * 2, v, lat: .85, t: (r() * 5) | 0 }); });
 }
 const cbMesh = new THREE.InstancedMesh(cbGeo, matV, canalBoats.length); cbMesh.frustumCulled = false; world.add(cbMesh);
 canalBoats.forEach((b, i) => cbMesh.setColorAt(i, CB_TINT[b.t]));
-function pathAt(c, s) {
+function pathAt(c, s) { /* works for canals and sidewalks alike: needs pts and cum */
   const cum = c.cum; let i = 1; while (i < cum.length - 1 && cum[i] < s) i++;
   const a = c.pts[i - 1], b = c.pts[i], seg = cum[i] - cum[i - 1] || 1, t = Math.min(1, Math.max(0, (s - cum[i - 1]) / seg));
   return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, (b[0] - a[0]) / seg, (b[1] - a[1]) / seg];
@@ -595,16 +590,21 @@ $('bFind').addEventListener('click', () => findResident($('q').value));
 $('q').addEventListener('keydown', e => { if (e.key === 'Enter') { findResident(e.target.value); e.target.blur(); } });
 $('bMenu').addEventListener('click', () => sheet.classList.contains('open') ? closeSheet() : openSheet());
 
-/* ---------- three views: village, canal walk, penthouse ---------- */
-const ROWS = [3, 4, 5, 0]; /* canals you can walk along */
+/* ---------- views: village, sidewalk walk, cottages, penthouse ---------- */
+const ROWS = [3, 4, 5, 0]; /* sidewalks you can walk along */
 let vt = 0;
 function syncViews() { document.querySelectorAll('#views [data-v]').forEach(b => b.classList.toggle('on', b.dataset.v === view.mode)); }
-function walkTo(x) { /* stand on the quay beside the canal, at x */
+/* eye level on the sidewalk, or on the stone bridge where the row crosses the river */
+function walkY(x, z) {
+  const br = L.bridges[view.row];
+  return (br && Math.abs(x - br.x) < 10.6 ? br.y + 1 : Math.max(H(x, z), WL) + .16) + 1.75;
+}
+function walkTo(x) { /* stand ON the sidewalk of the current row, at x */
   if (x < -158 || x > 158) return false;
   const lz = laneZ(view.row, x), cx = L.church.x, cz = L.church.z;
   if (Math.abs(x - cx) < 23 && lz > cz - 29 && lz < cz + 15) return false; /* the church square */
-  const z = lz + 4.4;
-  view.wx = x; goal.tx = x; goal.tz = z; goal.ty = Math.max(H(x, z), WL) + 1.9;
+  const z = lz + .9; /* the sidewalk line (see world.js) */
+  view.wx = x; goal.tx = x; goal.tz = z; goal.ty = walkY(x, z);
   return true;
 }
 function stepWalk(d) { walkTo(view.wx + (Math.sin(goal.yaw) > 0 ? -d : d)); }
@@ -629,6 +629,8 @@ function setView(m, next) {
 $('vHome').addEventListener('click', () => setView('orbit'));
 $('vWalk').addEventListener('click', () => setView('walk', true));
 $('vPh').addEventListener('click', () => setView('ph', true));
+/* the cottage button: fly over to the lakeview cottages on the north shore, looking at their fronts */
+const vCot = $('vCot'); if (vCot) vCot.addEventListener('click', () => { setView('orbit'); fly({ x: 0, z: -224, yaw: .12, pitch: .34, dist: 150 }); });
 
 /* ---------- tour ---------- */
 const TOUR = () => [
