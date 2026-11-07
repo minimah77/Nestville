@@ -1,8 +1,8 @@
 /* Nestville town: renderer, terrain, camera, UI */
 import * as THREE from './lib.js';
-import { MB, chalet, openLot, penthouse, castleLake, castleEast, castleIsland, watchtower, church, fountain, shop, bridge, pier, boat, lamp, K } from './build.js';
+import { MB, chalet, openLot, penthouse, castleLake, castleEast, castleIsland, watchtower, church, fountain, shop, cottage, bridge, pier, boat, lamp, K } from './build.js';
 import { H, B, TOWN, L, layout, baseH, xr, Rs, roadDist, plazas, sz, laneZ, canals, canalDist, WL, RIVER_Z0, RIVER_Z1, sm, fbm } from './world.js';
-import { load, save, PH_PRICES, SHOP_PRICE, KINDS, IG_DM, fmt, avatar, stats, rng } from './shared.js';
+import { load, save, PH_PRICES, SHOP_PRICE, COT_PRICES, KINDS, IG_DM, fmt, avatar, stats, rng } from './shared.js';
 
 const $ = id => document.getElementById(id);
 const S = load();
@@ -153,18 +153,21 @@ L.castles.forEach(c => ent({ kind: 'castle', id: 'c-' + c.id, x: c.x, z: c.z, y:
 ent({ kind: 'church', id: 'church', x: L.church.x, z: L.church.z, y: L.church.y, r: 12, top: 54, label: 'Village church', cls: 's', vis: 280, ref: L.church });
 L.pent.forEach(p => ent({ kind: 'ph', id: 'ph' + p.i, x: p.x, z: p.z, y: p.y, r: 10, top: 30, vis: 165, ref: p }));
 L.shops.forEach(s => ent({ kind: 'shop', id: 'sh' + s.i, x: s.x, z: s.z, y: s.y, r: 6, top: 13, vis: 120, ref: s }));
+L.cot.forEach(c => ent({ kind: 'cot', id: 'ct' + c.i, x: c.x, z: c.z, y: c.y, r: 5, top: 10, vis: 110, ref: c }));
 L.houses.forEach(h => ent({ kind: 'house', id: 'h' + h.idx, x: h.x, z: h.z, y: h.y, r: 7, top: 17, vis: 95, ref: h }));
 const yp = L.yachtPier;
 ent({ kind: 'yacht', id: 'yacht', x: yp.x, z: yp.z0 - 28, y: WL, r: 30, top: 16, label: 'Yacht club', cls: 's', vis: 280, ref: yp });
 const entById = {}; ents.forEach(e => entById[e.id] = e);
 
 function entLabel(e) {
+  if (e.kind === 'cot') { const o = S.cot[e.ref.i]; return 'Cottage ' + (e.ref.i + 1) + (o ? ' · @' + o.u : ' · For sale'); }
   if (e.kind === 'house') { const r = S.houses[e.ref.idx]; return r ? '@' + r.u : 'Open plot'; }
   if (e.kind === 'ph') { const o = S.ph[e.ref.i]; return 'Penthouse ' + (e.ref.i + 1) + (o ? ' · @' + o.u : ' · For sale'); }
   if (e.kind === 'shop') { const o = S.shops[e.ref.i]; return KINDS[e.ref.i] + (o ? ' · @' + o.u : ''); }
   return e.label;
 }
 function entCls(e) {
+  if (e.kind === 'cot') return S.cot[e.ref.i] ? 'lb' : 'lb k';
   if (e.kind === 'ph') return S.ph[e.ref.i] ? 'lb' : 'lb k';
   if (e.kind === 'house') return S.houses[e.ref.idx] ? 'lb' : 'lb';
   return 'lb' + (e.cls ? ' ' + e.cls : '');
@@ -195,11 +198,12 @@ function buildStatic() {
 }
 function buildDyn() {
   disposeGroup(dyn); smokeSrc.length = 0;
-  const bh = new MB(), bp = new MB(), bs = new MB();
+  const bh = new MB(), bp = new MB(), bs = new MB(), bc = new MB();
   L.houses.forEach(h => { const r = S.houses[h.idx]; if (r) chalet(bh, h.x, h.y, h.z, h.yaw, r.u, smokeSrc); else openLot(bh, h.x, h.y, h.z, h.yaw); });
   L.pent.forEach(p => penthouse(bp, p, !!S.ph[p.i]));
   L.shops.forEach(s => shop(bs, s, !!S.shops[s.i]));
-  addMesh(dyn, bh); addMesh(dyn, bp); addMesh(dyn, bs);
+  L.cot.forEach(c => cottage(bc, c, !!S.cot[c.i], smokeSrc));
+  addMesh(dyn, bh); addMesh(dyn, bp); addMesh(dyn, bs); addMesh(dyn, bc);
   buildSmoke();
   $('stat').textContent = S.houses.length + ' residents';
   refreshLabels();
@@ -233,6 +237,7 @@ function plantTrees(n) {
   [treesC, treesB].forEach(m => { if (m) { world.remove(m); m.dispose(); } }); treesC = treesB = null;
   const r = rng(424242), ex = [];
   L.houses.forEach(h => ex.push([h.x, h.z, 8])); L.pent.forEach(p => ex.push([p.x, p.z, 12.5])); L.shops.forEach(s => ex.push([s.x, s.z, 7]));
+  L.cot.forEach(c => ex.push([c.x, c.z, 10]));
   L.castles.forEach(c => ex.push([c.x, c.z, c.r + 5])); ex.push([L.church.x, L.church.z, 15], [L.plaza.x, L.plaza.z, 12]);
   const con = [], brd = []; let tries = 0;
   while (con.length + brd.length < n && tries < n * 14) {
@@ -453,6 +458,11 @@ function cardHTML(e) {
     return x + '<h3>' + KINDS[i] + '</h3><p>' + (o ? 'Run by @' + o.u + '.' : 'A shop on the lakeside promenade, open for your business.') + '</p>' +
       '<div style="display:flex;gap:8px;align-items:center"><b style="font:600 18px var(--fd)">' + fmt(SHOP_PRICE) + '</b><span style="flex:1"></span>' + (o ? '' : '<button class="pb gold" data-a="buy" data-k="shops" data-i="' + i + '">Buy</button>') + '</div>';
   }
+  if (e.kind === 'cot') {
+    const i = e.ref.i, o = S.cot[i];
+    return x + '<h3>Cottage ' + (i + 1) + '</h3><p>' + (o ? 'Home of @' + o.u + '.' : 'A little cottage with a flower garden, facing the lake.') + '</p>' +
+      '<div style="display:flex;gap:8px;align-items:center"><b style="font:600 18px var(--fd)">' + fmt(COT_PRICES[i]) + '</b><span style="flex:1"></span>' + (o ? '' : '<button class="pb gold" data-a="buy" data-k="cot" data-i="' + i + '">Buy</button>') + '</div>';
+  }
   if (e.kind === 'yacht') return x + '<h3>Yacht club</h3><p>Three yachts are moored in the east bay of the lake.</p>';
   const blurb = { lake: 'A white-walled castle on the peninsula, with a tall dark spire.', east: 'Four towers and a tall bell tower on the eastern hill.', island: 'A small keep on its own island in the lake.', tower: 'An old stone watchtower guarding the eastern shore.' };
   if (e.kind === 'castle') return x + '<h3>' + e.label + '</h3><p>' + blurb[e.ref.id] + ' Landmark of Nestville.</p>';
@@ -473,6 +483,10 @@ function openSheet(t) { tab = t || tab; sheet.classList.add('open'); renderTab()
 function closeSheet() { sheet.classList.remove('open'); }
 function renderTab() {
   document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === tab));
+  if (tab === 'cot') {
+    $('pane').innerHTML = '<h4>Lakeview cottages</h4>' + L.cot.map(q => { const o = S.cot[q.i]; return '<div class="row"><div><b>Cottage ' + (q.i + 1) + '</b><small class="' + (o ? 'own' : '') + '">' + (o ? 'Home of @' + o.u : fmt(COT_PRICES[q.i])) + '</small></div><div style="display:flex;gap:6px"><button class="pb g" data-go="ct' + q.i + '">View</button>' + (o ? '' : '<button class="pb gold" data-a="buy" data-k="cot" data-i="' + q.i + '">Buy</button>') + '</div></div>'; }).join('');
+    return;
+  }
   const p = $('pane');
   if (tab === 'claim') {
     p.innerHTML = S.me ? '<h4>Your house</h4><div class="row"><div style="display:flex;gap:10px;align-items:center">' + avatar(S.me, 44) + '<div><b>@' + S.me + '</b><small>Resident of Nestville</small></div></div><button class="pb" data-go="me">Fly there</button></div><p class="note">Preview: your house is saved on this device until launch.</p><button class="pb g" data-a="reset" style="width:100%">Use a different handle</button>'
@@ -619,7 +633,7 @@ function frameLoop(now) {
       cands.push([e, d, v3.x, v3.y]);
     }
     cands.sort((a, b) => a[1] - b[1]); let hs = 0;
-    cands.forEach(c => { const e = c[0]; if (e.kind === 'house' && ++hs > (view.mode === 'walk' ? 5 : 18)) { if (e.shown) { e.el.style.display = 'none'; e.shown = false; } return; }
+    cands.forEach(c => { const e = c[0]; if ((e.kind === 'house' || e.kind === 'cot') && ++hs > (view.mode === 'walk' ? 5 : 18)) { if (e.shown) { e.el.style.display = 'none'; e.shown = false; } return; }
       if (!e.shown) { e.el.style.display = ''; e.shown = true; }
       e.el.style.transform = 'translate(' + ((c[2] * .5 + .5) * innerWidth) + 'px,' + ((-c[3] * .5 + .5) * innerHeight) + 'px) translate(-50%,-100%)';
       e.el.style.opacity = clamp((e.vis - c[1]) / (e.vis * .25), 0, 1); });
