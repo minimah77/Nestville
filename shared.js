@@ -12,6 +12,10 @@ export const coins = n => Math.round(n).toLocaleString('en-US'); /* in-game Nest
    Owners count as land and earn daily rent. */
 export const OWNERS = { ph: {}, cot: {}, shops: {} };
 
+/* CITIZENS: the Instagram handles of your followers (lowercase, no @). ONLY these handles can claim a house.
+   When you get a "new follower" notification, add their handle here and push. Example: ['mia.codes', 'alex_trav'] */
+export const CITIZENS = []; /* add your own handle first so you can test */
+
 /* ---------- economy ----------
    Nest coins are free to earn and only decide the leaderboard. They are not IRT.
    - Moving in gives WELCOME coins.
@@ -52,7 +56,7 @@ export function load() {
       }
     }
   } catch (e) { }
-  S.houses = (S.houses || []).filter(r => r && r.u && r.code !== 'DEMO');
+  S.houses = (S.houses || []).filter(r => r && r.u && r.code !== 'DEMO' && CITIZENS.includes(r.u));
   S.houses.forEach(ensure);
   /* ownership comes only from the OWNERS list above */
   S.ph = Array(10).fill(null); S.shops = Array(6).fill(null); S.cot = Array(60).fill(null);

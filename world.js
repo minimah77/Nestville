@@ -244,12 +244,40 @@ export function layout() {
      back garden behind it and a sidewalk runs in front of every row, joined by one cross sidewalk, exactly like the village.
      They are claimable plots like the rest and are handed out after the village rows are full.
      To move or resize a block change its centre cx, cz or its cols (houses per row) and rows. Houses that would land in water or on a steep slope are skipped. */
-  const BLOCKS = []; /* the separate villa blocks are gone too */
+  /* MEADOW QUARTERS (the big open meadow north of the lake, around the cottages): four tidy blocks of houses, all facing the lake.
+     cx, cz = centre of the block | cols = houses per row | rows = number of rows | yaw 0 = fronts look south, toward the lake.
+     To move or resize a block change its numbers. Houses that would land in water or on a steep slope are skipped. */
+  const BLOCKS = [
+    { cx: -175, cz: -250, cols: 6, rows: 3, yaw: 0 }, /* west of the cottages */
+    { cx: 175, cz: -250, cols: 6, rows: 3, yaw: 0 }, /* east of the cottages */
+    { cx: -82, cz: -345, cols: 8, rows: 2, yaw: 0 }, /* behind the cottages, left */
+    { cx: 82, cz: -345, cols: 8, rows: 2, yaw: 0 }, /* behind the cottages, right */
+    /* the meadows on both sides of the lake, fronts looking east or west toward the water */
+    { cx: -250, cz: -145, cols: 8, rows: 3, yaw: Math.PI / 2 }, /* west of the lake, north of the old town */
+    { cx: 250, cz: -145, cols: 8, rows: 3, yaw: -Math.PI / 2 }, /* east of the lake, north of the old town */
+    { cx: -325, cz: -30, cols: 8, rows: 2, yaw: Math.PI / 2 }, /* far west meadow, beyond the old town */
+    { cx: 325, cz: -30, cols: 8, rows: 2, yaw: -Math.PI / 2 }, /* far east meadow */
+    { cx: -325, cz: 110, cols: 6, rows: 2, yaw: Math.PI / 2 },
+    { cx: 325, cz: 110, cols: 6, rows: 2, yaw: -Math.PI / 2 },
+    /* the north meadow, second tier */
+    { cx: -195, cz: -345, cols: 5, rows: 2, yaw: 0 }, { cx: 195, cz: -345, cols: 5, rows: 2, yaw: 0 },
+    { cx: -300, cz: -290, cols: 4, rows: 2, yaw: 0 }, { cx: 300, cz: -290, cols: 4, rows: 2, yaw: 0 },
+    /* the gentle slope just south of the village, fronts looking north to the lake (further south it gets too steep) */
+    { cx: -95, cz: 215, cols: 8, rows: 2, yaw: Math.PI }, { cx: 105, cz: 215, cols: 8, rows: 2, yaw: Math.PI },
+    { cx: -200, cz: 220, cols: 5, rows: 2, yaw: Math.PI }, { cx: 205, cz: 220, cols: 5, rows: 2, yaw: Math.PI }
+  ];
   const VS = 18, VR = 29, FRONT = 11.6; /* spacing along a row, spacing between rows, sidewalk distance in front of the house centre */
+  /* AUTO-FILL: more blocks laid over every free stretch of land, nearest to the middle first, until the village and meadow houses reach HOUSE_CAP
+     (the 100 old-town houses come after, so the whole town ends up at about 700). A house is skipped if it would land on water, a steep slope, another house,
+     the village, the old towns, the cottages or the river. Lower HOUSE_CAP for fewer houses. */
+  const HOUSE_CAP = 600, AUTO = [];
+  for (let cx = -345; cx <= 345; cx += 90) for (let cz = -385; cz <= 235; cz += 58) AUTO.push({ cx, cz, cols: 5, rows: 2, yaw: Math.round(Math.atan2(LAKE0.x - cx, LAKE0.z - cz) / (Math.PI / 2)) * (Math.PI / 2), auto: 1 });
+  AUTO.sort((p, q) => Math.hypot(p.cx * .7, p.cz + 60) - Math.hypot(q.cx * .7, q.cz + 60));
+  BLOCKS.push(...AUTO);
   const villas = [], nearC = (x, z, m) => L.castles.some(c => Math.hypot(x - c.x, z - c.z) < c.r + m);
   for (const bk of BLOCKS) {
-    let lx = LAKE0.x - bk.cx, lz = LAKE0.z - bk.cz; const ang = Math.round(Math.atan2(lx, lz) / (Math.PI / 4)) * (Math.PI / 4);
-    lx = Math.sin(ang); lz = Math.cos(ang); /* unit vector from the block to the lake: the way the fronts look */
+    const ang = bk.yaw !== undefined ? bk.yaw : Math.round(Math.atan2(LAKE0.x - bk.cx, LAKE0.z - bk.cz) / (Math.PI / 4)) * (Math.PI / 4);
+    const lx = Math.sin(ang), lz = Math.cos(ang); /* unit vector from the block to the lake: the way the fronts look */
     const yaw = ang, tx = Math.cos(ang), tz = -Math.sin(ang); /* tx, tz: along a row */
     for (let j = 0; j < bk.rows; j++) {
       const rowPts = [];
@@ -261,11 +289,15 @@ export function layout() {
         if (h < 1.4 || baseH(gx, gz) < 1.2) continue;
         if (Math.hypot(baseH(x + 6, z) - baseH(x - 6, z), baseH(x, z + 6) - baseH(x, z - 6)) / 12 > .24) continue; /* not on a steep slope */
         if (L.castles.some(c => Math.hypot(x - c.x, z - c.z) < c.r + 26)) continue;
+        if (L.houses.length >= HOUSE_CAP) continue;
+        if (L.houses.some(v => Math.hypot(x - v.x, z - v.z) < 14) || L.shops.some(v => Math.hypot(x - v.x, z - v.z) < 14) || L.pent.some(v => Math.hypot(x - v.x, z - v.z) < 18)) continue;
+        if (Math.abs(x) < 125 && z > -325 && z < -165) continue; /* the cottage district */
+        if (bk.auto && ((Math.abs(x) < 292 && z > -80 && z < 205) || (z > 120 && Math.abs(x - xr(z)) < 16))) continue; /* the village, the old towns and the river */
         addPad(x, z, 5.6, h, 4.5); addPad(gx, gz, 6.6, h, 5); addPad(x + lx * 7.5, z + lz * 7.5, 3.4, h, 4); /* house, back garden, front gate */
         const v = { idx: L.houses.length, x, z, y: h, yaw, w: 9, d: 8, hgt: 14, row: -1, built: true, gx, gz, style: (i + j) % 3 === 1 ? 'town' : 'chalet' };
-        villas.push(v); L.houses.push(v); rowPts.push(v);
+        villas.push(v); L.houses.push(v); rowPts.push(v); bk.placed = (bk.placed || 0) + 1;
       }
-      if (!rowPts.length) continue;
+      if (rowPts.length < (bk.auto ? 3 : 1)) continue; /* no sidewalk for a row of one or two houses */
       /* sidewalk in front of the row, running one house further than the first and last house */
       const first = rowPts[0], last = rowPts[rowPts.length - 1];
       const sx = (p, k) => [p.x + lx * FRONT + tx * k, p.z + lz * FRONT + tz * k];
@@ -278,7 +310,7 @@ export function layout() {
       flush();
     }
     /* the cross sidewalk joining the rows of a two-row block, halfway along the row, running in the gap between two houses */
-    if (bk.rows > 1 && bk.cols > 1) {
+    if (bk.rows > 1 && bk.cols > 1 && (!bk.auto || (bk.placed || 0) >= 6)) {
       const m = Math.floor(bk.cols / 2) - .5, along = (m - (bk.cols - 1) / 2) * VS;
       const ends = [0, bk.rows - 1].map(j => { const back = (j - (bk.rows - 1) / 2) * VR; return [bk.cx + tx * along - lx * back + lx * FRONT, bk.cz + tz * along - lz * back + lz * FRONT]; });
       const pts = [], n = Math.max(2, Math.ceil(Math.hypot(ends[1][0] - ends[0][0], ends[1][1] - ends[0][1]) / 4));

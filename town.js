@@ -3,16 +3,17 @@ import * as THREE from './lib.js';
 import { paths, pavement } from './paths.js';
 import { MB, chalet, townhouse, openLot, penthouse, castleLake, castleEast, castleIsland, watchtower, church, fountain, shop, cottage, pier, boat, lamp, K } from './build.js';
 import { H, B, TOWN, L, layout, baseH, xr, Rs, roadDist, plazas, sz, laneZ, canals, canalDist, WL, RIVER_Z0, RIVER_Z1, sm, fbm } from './world.js';
-import { load, save, PH_PRICES, SHOP_PRICE, COT_PRICES, KINDS, IG_DM, fmt, avatar, stats, rng } from './shared.js';
+import { load, save, PH_PRICES, SHOP_PRICE, COT_PRICES, KINDS, IG_DM, CITIZENS, fmt, avatar, stats, rng } from './shared.js';
 import './folks.js'; /* the people strolling on the sidewalks */
 
 const $ = id => document.getElementById(id);
 const S = load();
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+/* refl is 0 everywhere now: the water no longer mirrors the clouds, it is plain blue with a soft sun glint */
 const QUAL = {
   low: { step: 6.5, pr: 1, shadow: 0, trees: 250, fx: 0, refl: 0, label: 'Low' },
   medium: { step: 4.2, pr: 1.5, shadow: 2048, trees: 650, fx: 1, refl: 0, label: 'Medium' },
-  high: { step: 2.9, pr: 2, shadow: 4096, trees: 1300, fx: 1, refl: 1, label: 'High' }
+  high: { step: 2.9, pr: 2, shadow: 4096, trees: 1300, fx: 1, refl: 0, label: 'High' }
 };
 let gfx = 'medium';
 try { const g = localStorage.getItem('nv-gfx'); if (QUAL[g]) gfx = g; } catch (e) { }
@@ -84,8 +85,8 @@ function buildTerrain(step) {
         const d = roadDist(x, z); if (d < 3.4) o.lerp(C.path, 1 - sm(1.7, 3.4, d));
         for (const p of plazas) { const dd = Math.hypot(x - p.x, z - p.z); if (dd < p.r) o.lerp(C.cob, 1 - sm(p.r - 2, p.r, dd)); }
       }
-      /* the ground under every sidewalk (both villages) is painted pavement, so even if a blade of terrain shows through it is grey, never green */
-      if (x > -200 && x < 200 && z > -275 && z < 200) { const pv = pavement(x, z); if (pv.col && pv.d < 1.1) o.lerp(pv.col, 1 - sm(.1, 1.1, pv.d)); }
+      /* the ground under every sidewalk (both villages and the meadow blocks) is painted pavement, so even if a blade of terrain shows through it is grey, never green */
+      if (x > -260 && x < 260 && z > -345 && z < 200) { const pv = pavement(x, z); if (pv.col && pv.d < 1.1) o.lerp(pv.col, 1 - sm(.1, 1.1, pv.d)); }
     }
     col[k * 3] = o.r; col[k * 3 + 1] = o.g; col[k * 3 + 2] = o.b;
   }
@@ -103,21 +104,15 @@ function buildTerrain(step) {
   terrain = new THREE.Mesh(g, matV); terrain.receiveShadow = true; world.add(terrain);
 }
 
-/* ---------- water ---------- */
+/* ---------- water: plain blue, almost opaque (so the lake bed does not show through in patches), with a soft sun glint ---------- */
 const waterGeo = new THREE.PlaneGeometry(420, 250, 126, 76); waterGeo.rotateX(-Math.PI / 2);
-const waterMat = new THREE.MeshPhongMaterial({ color: '#4fb4cc', specular: '#ffffff', shininess: 140, transparent: true, opacity: .8, depthWrite: false });
+const waterMat = new THREE.MeshPhongMaterial({ color: '#46a6c6', specular: '#fff4d6', shininess: 90, transparent: true, opacity: .93, depthWrite: false });
 const water = new THREE.Mesh(waterGeo, waterMat); water.position.set(0, WL, -85); water.renderOrder = 2; world.add(water);
 const wBase = Float32Array.from(waterGeo.attributes.position.array);
 let reflector = null;
-async function setReflector(on) {
+async function setReflector(on) { /* kept for later, but never switched on: no cloud mirror */
   if (reflector) { world.remove(reflector); reflector.getRenderTarget().dispose(); reflector = null; }
-  if (!on) { waterMat.opacity = .84; return; }
-  try {
-    const { Reflector } = await import('three/addons/objects/Reflector.js');
-    reflector = new Reflector(new THREE.PlaneGeometry(420, 250), { textureWidth: 1024, textureHeight: 1024, color: 0xcfe4ec, clipBias: .003 });
-    reflector.rotation.x = -Math.PI / 2; reflector.position.set(0, WL - .05, -85); reflector.renderOrder = 1; world.add(reflector);
-    waterMat.opacity = .5;
-  } catch (e) { waterMat.opacity = .84; }
+  waterMat.opacity = .93;
 }
 /* river ribbon */
 (function river() {
@@ -299,7 +294,7 @@ function lampSpots() {
 function plantTrees(n) {
   [treesC, treesB, treesS].forEach(m => { if (m) { world.remove(m); m.dispose(); } }); treesC = treesB = treesS = null;
   const r = rng(424242), ex = [];
-  L.houses.forEach(h => ex.push([h.x, h.z, 8])); L.pent.forEach(p => ex.push([p.x, p.z, 12.5])); L.shops.forEach(s => ex.push([s.x, s.z, 7]));
+  L.houses.forEach(h => ex.push([h.x, h.z, h.built ? 13 : 8])); L.pent.forEach(p => ex.push([p.x, p.z, 12.5])); L.shops.forEach(s => ex.push([s.x, s.z, 7]));
   L.cot.forEach(c => ex.push([c.x, c.z, 10]));
   L.castles.forEach(c => ex.push([c.x, c.z, c.r + 5])); ex.push([L.church.x, L.church.z, 15], [L.plaza.x, L.plaza.z, 12]);
   const con = [], brd = []; let tries = 0;
@@ -308,7 +303,8 @@ function plantTrees(n) {
     const x = -470 + r() * 940, z = -450 + r() * 930, h = H(x, z);
     if (h < 1.7 || h > 95) continue;
     if (x > TOWN.x0 && x < TOWN.x1 && z > TOWN.z0 && z < 150) continue; /* the village: trees only along the sidewalks */
-    if (Math.abs(x) < 125 && z > -285 && z < -165) continue; /* the cottage district and its shore stay open */
+    if (Math.abs(x) < 125 && z > -330 && z < -165) continue; /* the cottage district and its shore stay open */
+    if (Math.abs(x) < 235 && z > -375 && z < -190) continue; /* the meadow house blocks: only the street trees along their sidewalks */
     const f = fbm(x * .022 + 7, z * .022 + 2, 3);
     if (f < .44 && h < 60 && r() > .2) continue;
     if (h < 9 && r() > .1) continue; /* low ground stays mostly open: a few scattered trees on the meadow, the forest is on the mountains */
@@ -510,7 +506,7 @@ function cardHTML(e) {
   const x = '<button class="x" data-a="close" aria-label="Close">×</button>';
   if (e.kind === 'house') {
     const r = S.houses[e.ref.idx];
-    if (!r) return x + '<h3>Open plot</h3><p>A home is waiting here. Claim your house and become a resident.</p><button class="pb gold" data-a="claim">Claim a house</button>';
+    if (!r) return x + '<h3>Open plot</h3><p>A home is waiting here for every follower. Type your Instagram handle to move in.</p><button class="pb gold" data-a="claim">Claim a house</button>';
     const st = stats(r.u);
     return x + '<div style="display:flex;gap:12px;align-items:center">' + avatar(r.u, 52) + '<div><h3 style="padding:0">@' + r.u + '</h3><p style="margin:0">Resident of Nestville</p></div></div>' +
       '<div style="display:flex;gap:8px;margin:12px 0 0">' + [['Coins', st.coins.toLocaleString('en-US')], ['Land', st.land + ' plots'], ['Streak', st.streak + ' days']].map(a => '<div style="flex:1;background:rgba(255,255,255,.55);border-radius:14px;padding:8px 10px"><small style="color:var(--mute);font-weight:700">' + a[0] + '</small><div style="font:700 15px var(--fb)">' + a[1] + '</div></div>').join('') + '</div>';
@@ -556,8 +552,8 @@ function renderTab() {
   }
   const p = $('pane');
   if (tab === 'claim') {
-    p.innerHTML = S.me ? '<h4>Your house</h4><div class="row"><div style="display:flex;gap:10px;align-items:center">' + avatar(S.me, 44) + '<div><b>@' + S.me + '</b><small>Resident of Nestville</small></div></div><button class="pb" data-go="me">Fly there</button></div><p class="note">Preview: your house is saved on this device until launch.</p><button class="pb g" data-a="reset" style="width:100%">Use a different handle</button>'
-      : '<h4>Claim your house</h4><p class="note">Every follower gets a house in Nestville. Type your Instagram handle to move in.</p><input id="hIn" placeholder="@yourname" autocapitalize="none" autocomplete="off" aria-label="Instagram handle"><button class="pb gold" data-a="go" style="width:100%;margin-top:6px">Claim my house</button><p class="note">Preview: claims are saved on this device until launch.</p>';
+    p.innerHTML = S.me ? '<h4>Your house</h4><div class="row"><div style="display:flex;gap:10px;align-items:center">' + avatar(S.me, 44) + '<div><b>@' + S.me + '</b><small>Resident of Nestville</small></div></div><button class="pb" data-go="me">Fly there</button></div><p class="note">Your house is saved on this device.</p><button class="pb g" data-a="reset" style="width:100%">Use a different handle</button>'
+      : '<h4>Claim your house</h4><p class="note">Every follower gets a house in Nestville. Type your Instagram handle to move in. New follower? We add you to the list soon after you follow.</p><input id="hIn" placeholder="@yourname" autocapitalize="none" autocomplete="off" aria-label="Instagram handle"><button class="pb gold" data-a="go" style="width:100%;margin-top:6px">Claim my house</button>';
   } else if (tab === 'ph') {
     p.innerHTML = '<h4>Penthouses</h4>' + L.pent.map(q => { const o = S.ph[q.i]; return '<div class="row"><div><b>Penthouse ' + (q.i + 1) + '</b><small class="' + (o ? 'own' : '') + '">' + (o ? 'Owned by @' + o.u : fmt(PH_PRICES[q.i])) + '</small></div><div style="display:flex;gap:6px"><button class="pb g" data-go="ph' + q.i + '">View</button>' + (o ? '' : '<button class="pb gold" data-a="buy" data-k="ph" data-i="' + q.i + '">Buy</button>') + '</div></div>'; }).join('');
   } else {
@@ -577,8 +573,10 @@ sheet.querySelector('.grab').addEventListener('click', closeSheet);
 function cleanName(v) { return String(v || '').trim().replace(/^@+/, '').toLowerCase().replace(/[^a-z0-9._]/g, '').slice(0, 30); }
 function claim(v) {
   const u = cleanName(v); if (u.length < 2) { toast('Type your Instagram handle first.'); return; }
+  /* followers only: the handle has to be on the CITIZENS list in shared.js */
+  if (!CITIZENS.includes(u)) { toast('Nestville is for followers. Follow us on Instagram, then try again once we have added you.'); return; }
   let i = S.houses.findIndex(h => h.u === u);
-  if (i < 0) { if (S.houses.length >= L.houses.length) { toast('The village is full in this preview.'); return; } S.houses.push({ u, code: 'USER' }); i = S.houses.length - 1; }
+  if (i < 0) { if (S.houses.length >= L.houses.length) { toast('The village is full right now.'); return; } S.houses.push({ u, code: 'USER' }); i = S.houses.length - 1; }
   S.me = u; save(S); buildDyn(); closeSheet(); toast('Welcome home, @' + u); setTimeout(() => select(entById['h' + i]), 300);
 }
 function findResident(v) {
@@ -630,8 +628,8 @@ function setView(m, next) {
 $('vHome').addEventListener('click', () => setView('orbit'));
 $('vWalk').addEventListener('click', () => setView('walk', true));
 $('vPh').addEventListener('click', () => setView('ph', true));
-/* the cottage button: fly over to the lakeview cottages on the north shore, looking at their fronts */
-const vCot = $('vCot'); if (vCot) vCot.addEventListener('click', () => { setView('orbit'); fly({ x: 0, z: -224, yaw: .12, pitch: .34, dist: 150 }); });
+/* the cottage button: fly over to the lakeview cottages on the north shore, looking at their fronts (now six rows deep, so a little farther back) */
+const vCot = $('vCot'); if (vCot) vCot.addEventListener('click', () => { setView('orbit'); fly({ x: 0, z: -250, yaw: .12, pitch: .36, dist: 200 }); });
 
 /* ---------- tour ---------- */
 const TOUR = () => [
