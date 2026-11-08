@@ -102,7 +102,7 @@ function billiards(b, d) {
     for (let i = 0; i < 4; i++) { const a = x - 2.2 + i * 1.1, c = a + 1.1; b.Q([a, 3.4, 3.1], [a, 2.7, 4.7], [c, 2.7, 4.7], [c, 3.4, 3.1], i % 2 ? '#f4f6f4' : '#b8352f'); }
   }
   umbrella(b, -7.5, 8, '#b8352f'); umbrella(b, 7.5, 8, '#b8352f');
-  b.box(0, .12, 9.5, 5, .04, 9, '#b8352f');                   /* red carpet down the steps */
+  b.box(0, .16, 9.5, 5, .06, 9, '#b8352f');                   /* red carpet down the steps */
 }
 
 function mainStreet(b, d) {
