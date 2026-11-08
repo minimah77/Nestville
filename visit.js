@@ -4,7 +4,7 @@
    Runs next to town.js and reads the same scene (window.__nv). */
 import * as THREE from './lib.js';
 import { buildRoom } from './rooms.js';
-import { IG_DM, KINDS, fmt, PH_PRICES, SHOP_PRICE, COT_PRICES } from './shared.js';
+import { IG_DM, KINDS, fmt, PH_PRICES, SHOP_PRICE } from './shared.js';
 
 function ready(fn) { if (window.__nv) fn(window.__nv); else setTimeout(() => ready(fn), 50); }
 const $ = id => document.getElementById(id);
@@ -14,8 +14,8 @@ const OX = 6000, OZ = 6000;
 ready(nv => {
   const S = nv.S, scene = nv.scene, camera = nv.camera, ents = nv.ents;
   const empty = e => e.kind === 'house' ? !S.houses[e.ref.idx] : e.kind === 'shop' ? !S.shops[e.ref.i] : e.kind === 'cot' ? !S.cot[e.ref.i] : e.kind === 'ph' ? !S.ph[e.ref.i] : false;
-  const specOf = e => e.kind === 'house' ? { kind: 'house', n: e.ref.idx } : e.kind === 'shop' ? { kind: 'shop', n: e.ref.i, name: KINDS[e.ref.i] } : e.kind === 'cot' ? { kind: 'cot', n: e.ref.i } : { kind: 'ph', n: e.ref.i };
-  const priceOf = e => e.kind === 'ph' ? PH_PRICES[e.ref.i] : e.kind === 'shop' ? SHOP_PRICE : e.kind === 'cot' ? COT_PRICES[e.ref.i] : 0;
+  const specOf = e => e.kind === 'house' ? { kind: 'house', n: e.ref.idx } : e.kind === 'shop' ? { kind: 'shop', n: e.ref.i % 6, name: KINDS[e.ref.i] } : e.kind === 'cot' ? { kind: 'cot', n: e.ref.i } : { kind: 'ph', n: e.ref.i };
+  const priceOf = e => e.kind === 'ph' ? PH_PRICES[e.ref.i] : e.kind === 'shop' ? SHOP_PRICE : 0; /* cottages are free */
   const word = { house: 'house', shop: 'shop', cot: 'cottage', ph: 'penthouse' };
   const FREE_MSG = 'Cottages are free. Message me on Instagram to get yours.';
 
