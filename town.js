@@ -3,7 +3,7 @@ import * as THREE from './lib.js';
 import { paths, pavement } from './paths.js';
 import { MB, chalet, townhouse, openLot, penthouse, castleLake, castleEast, castleIsland, watchtower, church, fountain, shop, cottage, pier, boat, lamp, K } from './build.js';
 import { H, B, TOWN, L, layout, baseH, xr, Rs, roadDist, plazas, sz, laneZ, canals, canalDist, WL, RIVER_Z0, RIVER_Z1, sm, fbm } from './world.js';
-import { load, save, PH_PRICES, SHOP_PRICE, COT_PRICES, KINDS, IG_DM, CITIZENS, fmt, avatar, stats, rng } from './shared.js';
+import { load, save, PH_PRICES, SHOP_PRICE, KINDS, IG_DM, CITIZENS, fmt, avatar, stats, rng } from './shared.js';
 import { landmarks } from './landmarks.js';
 import './folks.js'; /* the people strolling on the sidewalks */
 
@@ -195,7 +195,7 @@ ent({ kind: 'yacht', id: 'yacht', x: yp.x, z: yp.z0 - 28, y: WL, r: 30, top: 16,
 const entById = {}; ents.forEach(e => entById[e.id] = e);
 
 function entLabel(e) {
-  if (e.kind === 'cot') { const o = S.cot[e.ref.i]; return 'Cottage ' + (e.ref.i + 1) + (o ? ' · @' + o.u : ' · For sale'); }
+  if (e.kind === 'cot') { const o = S.cot[e.ref.i]; return 'Cottage ' + (e.ref.i + 1) + (o ? ' · @' + o.u : ' · Free'); }
   if (e.kind === 'house') { const r = S.houses[e.ref.idx]; return r ? '@' + r.u : 'Open plot'; }
   if (e.kind === 'ph') { const o = S.ph[e.ref.i]; return 'Penthouse ' + (e.ref.i + 1) + (o ? ' · @' + o.u : ' · For sale'); }
   if (e.kind === 'shop') { const o = S.shops[e.ref.i]; return KINDS[e.ref.i] + (o ? ' · @' + o.u : ''); }
@@ -234,7 +234,7 @@ function buildDyn() {
   const bh = new MB(), bp = new MB(), bs = new MB(), bc = new MB();
   L.houses.forEach(h => { const r = S.houses[h.idx], u = r ? r.u : 'home' + h.idx, f = h.style === 'town' ? townhouse : chalet; f(bh, h.x, h.y, h.z, h.yaw, u, r ? smokeSrc : null, !r); }); /* every plot is a real house now; the empty ones are simpler and carry the little sign */
   L.pent.forEach(p => penthouse(bp, p, !!S.ph[p.i]));
-  L.shops.forEach(s => shop(bs, s, !!S.shops[s.i]));
+  L.shops.forEach(s => shop(bs, { ...s, i: s.i % 6 }, !!S.shops[s.i])); /* 56 shops, 6 designs: shop() picks its colours and signs by type (i % 6) */
   L.cot.forEach(c => cottage(bc, c, !!S.cot[c.i], smokeSrc));
   addMesh(dyn, bh); addMesh(dyn, bp); addMesh(dyn, bs); addMesh(dyn, bc);
   buildSmoke();
@@ -556,13 +556,13 @@ function cardHTML(e) {
   }
   if (e.kind === 'shop') {
     const i = e.ref.i, o = S.shops[i];
-    return x + '<h3>' + KINDS[i] + '</h3><p>' + (o ? 'Run by @' + o.u + '.' : 'A shop on the lakeside promenade, open for your business.') + '</p>' +
+    return x + '<h3>' + KINDS[i] + '</h3><p>' + (o ? 'Run by @' + o.u + '.' : 'A shop in the Nestville shopping district, open for your business.') + '</p>' +
       '<div style="display:flex;gap:8px;align-items:center"><b style="font:600 18px var(--fd)">' + fmt(SHOP_PRICE) + '</b><span style="flex:1"></span>' + (o ? '' : '<button class="pb gold" data-a="buy" data-k="shops" data-i="' + i + '">Buy</button>') + '</div>';
   }
   if (e.kind === 'cot') {
     const i = e.ref.i, o = S.cot[i];
     return x + '<h3>Cottage ' + (i + 1) + '</h3><p>' + (o ? 'Home of @' + o.u + '.' : 'A little cottage with a flower garden, facing the lake.') + '</p>' +
-      '<div style="display:flex;gap:8px;align-items:center"><b style="font:600 18px var(--fd)">' + fmt(COT_PRICES[i]) + '</b><span style="flex:1"></span>' + (o ? '' : '<button class="pb gold" data-a="buy" data-k="cot" data-i="' + i + '">Buy</button>') + '</div>';
+      '<div style="display:flex;gap:8px;align-items:center"><b style="font:600 18px var(--fd)">Free</b><span style="flex:1"></span>' + (o ? '' : '<button class="pb gold" data-a="buy" data-k="cot" data-i="' + i + '">Get it free</button>') + '</div>';
   }
   if (e.kind === 'yacht') return x + '<h3>Yacht club</h3><p>Two yachts are moored in the east bay of the lake.</p>';
   if (e.kind === 'lm') return x + '<h3>' + e.label + '</h3><p>' + e.ref.blurb + ' Landmark of Nestville.</p>';
@@ -585,10 +585,6 @@ function openSheet(t) { tab = t || tab; sheet.classList.add('open'); renderTab()
 function closeSheet() { sheet.classList.remove('open'); }
 function renderTab() {
   document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === tab));
-  if (tab === 'cot') {
-    $('pane').innerHTML = '<h4>Lakeview cottages</h4>' + L.cot.map(q => { const o = S.cot[q.i]; return '<div class="row"><div><b>Cottage ' + (q.i + 1) + '</b><small class="' + (o ? 'own' : '') + '">' + (o ? 'Home of @' + o.u : fmt(COT_PRICES[q.i])) + '</small></div><div style="display:flex;gap:6px"><button class="pb g" data-go="ct' + q.i + '">View</button>' + (o ? '' : '<button class="pb gold" data-a="buy" data-k="cot" data-i="' + q.i + '">Buy</button>') + '</div></div>'; }).join('');
-    return;
-  }
   const p = $('pane');
   if (tab === 'claim') {
     p.innerHTML = S.me ? '<h4>Your house</h4><div class="row"><div style="display:flex;gap:10px;align-items:center">' + avatar(S.me, 44) + '<div><b>@' + S.me + '</b><small>Resident of Nestville</small></div></div><button class="pb" data-go="me">Fly there</button></div><p class="note">Your house is saved on this device.</p><button class="pb g" data-a="reset" style="width:100%">Use a different handle</button>'
@@ -596,7 +592,7 @@ function renderTab() {
   } else if (tab === 'ph') {
     p.innerHTML = '<h4>Penthouses</h4>' + L.pent.map(q => { const o = S.ph[q.i]; return '<div class="row"><div><b>Penthouse ' + (q.i + 1) + '</b><small class="' + (o ? 'own' : '') + '">' + (o ? 'Owned by @' + o.u : fmt(PH_PRICES[q.i])) + '</small></div><div style="display:flex;gap:6px"><button class="pb g" data-go="ph' + q.i + '">View</button>' + (o ? '' : '<button class="pb gold" data-a="buy" data-k="ph" data-i="' + q.i + '">Buy</button>') + '</div></div>'; }).join('');
   } else {
-    p.innerHTML = '<h4>Promenade shops</h4>' + L.shops.map(q => { const o = S.shops[q.i]; return '<div class="row"><div><b>' + KINDS[q.i] + '</b><small class="' + (o ? 'own' : '') + '">' + (o ? 'Run by @' + o.u : fmt(SHOP_PRICE)) + '</small></div><div style="display:flex;gap:6px"><button class="pb g" data-go="sh' + q.i + '">View</button>' + (o ? '' : '<button class="pb gold" data-a="buy" data-k="shops" data-i="' + q.i + '">Buy</button>') + '</div></div>'; }).join('');
+    p.innerHTML = '<h4>Shops (' + L.shops.length + ')</h4>' + L.shops.map(q => { const o = S.shops[q.i]; return '<div class="row"><div><b>' + KINDS[q.i] + '</b><small class="' + (o ? 'own' : '') + '">' + (o ? 'Run by @' + o.u : fmt(SHOP_PRICE)) + '</small></div><div style="display:flex;gap:6px"><button class="pb g" data-go="sh' + q.i + '">View</button>' + (o ? '' : '<button class="pb gold" data-a="buy" data-k="shops" data-i="' + q.i + '">Buy</button>') + '</div></div>'; }).join('');
   }
 }
 sheet.querySelector('.tabs').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { tab = b.dataset.t; renderTab(); } });
@@ -763,4 +759,4 @@ applyGfx(true).then(() => {
   const m = location.hash.match(/^#@?([\w.]+)/); if (m) setTimeout(() => findResident(m[1]), 600);
 });
 requestAnimationFrame(frameLoop);
-window.__nv = { get sel() { return sel; }, S, ents, select, fly, cam, goal, view, setView, renderer, scene, camera, applyGfx: g => { gfx = g; return applyGfx(false); } };
+window.__nv = { get sel() { return sel; }, S, ents, select, fly, cam, goal, view, setView, renderer, scene, camera, streetSpots, applyGfx: g => { gfx = g; return applyGfx(false); } };
