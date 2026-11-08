@@ -110,7 +110,7 @@ export const laneYaw = x => Math.PI - Math.atan((laneBase(x + 2) - laneBase(x - 
    Every row has an asphalt street running in front of its sidewalk, like the photo: house, lawn, sidewalk, grass verge (street trees and lamps stand here), kerb, street.
    The streets are drawn by streets.js (loaded from index.html). The little N-S cross streets are gone (XSTREETS is empty) so the sidewalks run unbroken and no tree or lamp can end up in a road.
    ROAD_W: width of every street. ROAD_OFF: street centre relative to laneZ (so a 3 unit grass verge stays between the sidewalk and the kerb). */
-export const ROAD_W = 6, ROAD_OFF = -7, XW = 2.0;
+export const ROAD_W = 8, ROAD_OFF = -8, XW = 2.0; /* WIDER STREETS: was 6 and -7. The south kerb stays where it was (4 from the row line), the extra width goes toward the north side */
 export const XSTREETS = [];
 export const roadZ = (r, x) => laneZ(r, x) + ROAD_OFF;
 /* is (x, z) closer than m to a cross street (only counting the stretch between the first and the last row street)? */
