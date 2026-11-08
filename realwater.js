@@ -9,6 +9,7 @@
    Tune: SHAL / DEEP (colours, linear), DEEPAT (depth in units where it is fully dark), FOAM (foam strength), SKYREF (sky mirror strength). */
 import * as THREE from './lib.js';
 import { H, WL } from './world.js';
+import './smallsun.js'; /* step 2: smaller sun in the sky */
 
 function ready(fn) { if (window.__nv) fn(window.__nv); else setTimeout(() => ready(fn), 50); }
 
