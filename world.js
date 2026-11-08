@@ -510,6 +510,26 @@ export function layout() {
     if (cur.length && cur[cur.length - 1][1] < z1 - .5 && roadOK(X, z1, false)) cur.push([X, z1]);
     flush();
   }
+  /* ROAD FIX (final): no road may lead into grass or the lake. Every street keeps only the stretch between its first and its last junction with another street:
+     a dead-end tail is cut off, the new end is snapped onto the street it meets, and a street that meets nothing at all is dropped. Repeats until nothing changes. */
+  { const near = (pts, x, z) => { let bd = 99, bp = null; for (let i = 0; i < pts.length - 1; i++) { const a = pts[i], b = pts[i + 1], vx = b[0] - a[0], vz = b[1] - a[1], t = Math.max(0, Math.min(1, ((x - a[0]) * vx + (z - a[1]) * vz) / (vx * vx + vz * vz + 1e-6))), px = a[0] + vx * t, pz = a[1] + vz * t, d = Math.hypot(x - px, z - pz); if (d < bd) { bd = d; bp = [px, pz]; } } return [bd, bp]; };
+    for (let pass = 0, changed = true; changed && pass < 20; pass++) {
+      changed = false;
+      for (const st of L.streets.slice()) {
+        if (st.k === 'bridge') continue;
+        const j = st.pts.map(p => { let best = null; for (const o of L.streets) { if (o === st) continue; const [d, q] = near(o.pts, p[0], p[1]); if (d < 4.5 && (!best || d < best[0])) best = [d, q]; } return best; });
+        const first = j.findIndex(Boolean), last = j.length - 1 - [...j].reverse().findIndex(Boolean);
+        if (first < 0) { L.streets.splice(L.streets.indexOf(st), 1); changed = true; continue; }
+        if (first > 0 || last < st.pts.length - 1) {
+          const pts = st.pts.slice(first, last + 1);
+          if (first > 0 && j[first][0] > .3) pts.unshift(j[first][1]);
+          if (last < st.pts.length - 1 && j[last][0] > .3) pts.push(j[last][1]);
+          if (pts.length < 2) L.streets.splice(L.streets.indexOf(st), 1); else st.pts = pts;
+          changed = true;
+        }
+      }
+    }
+  }
   /* crosswalks: zebra stripes on the cross street either side of each row street, and on each row street either side of each cross street */
   const onStreet = (x, z) => L.streets.some(s => polyDist(s.pts, x, z) < (s.k === 'ns' ? XW * 2 : ROAD_W) / 2 + .4);
   const tang = (r, x) => { const dz = roadZ(r, x + 1) - roadZ(r, x - 1); const l = Math.hypot(2, dz); return [2 / l, dz / l]; };
