@@ -2,10 +2,12 @@
    world.js lays out the streets (L.streets: polylines, L.xwalks: crosswalks, L.inter: intersections). This file draws them:
    dark asphalt with a little tone variation, light curbs on both edges, a dashed white centre line (not through intersections),
    and zebra crosswalks. Everything is two meshes (asphalt, markings), so it costs two draw calls.
+   Every street now ends in a half round turning bay with a curb all round, so no street stops dead against the grass.
    Runs next to town.js and extras.js and reads the same scene (window.__nv). Add  import './streets.js';  where extras.js is imported.
    Colours are at the top: tune ASPHALT / CURB / PAINT to taste. */
 import * as THREE from './lib.js';
 import { H, L, ROAD_W, XW } from './world.js';
+import './polish.js'; /* smaller sun + natural water (polish.js) */
 
 function ready(fn) { if (window.__nv) fn(window.__nv); else setTimeout(() => ready(fn), 50); }
 
@@ -110,6 +112,20 @@ ready(nv => {
       if (nearInter(m.x, m.z, hw + 3.6)) continue;
       const p0 = at(S, s), p1 = at(S, s + 2), w = .09, y = .014;
       mark.quad([p0.x - p0.tz * w, p0.y + y, p0.z + p0.tx * w], [p0.x + p0.tz * w, p0.y + y, p0.z - p0.tx * w], [p1.x + p1.tz * w, p1.y + y, p1.z - p1.tx * w], [p1.x - p1.tz * w, p1.y + y, p1.z + p1.tx * w], PAINT);
+    }
+    /* rounded ends: a street no longer stops dead against the grass. It finishes in a half round turning bay with a curb all round.
+       (p.tx, p.tz) is the way the street runs; dir turns it to point out of the street at each end. */
+    for (const [p, dir] of [[S[0], -1], [S[S.length - 1], 1]]) {
+      const ox = p.tx * dir, oz = p.tz * dir, nx = -oz, nz = ox, N = 10;
+      const pt = (a, r, y) => [p.x + (Math.cos(a) * ox + Math.sin(a) * nx) * r, y, p.z + (Math.cos(a) * oz + Math.sin(a) * nz) * r];
+      for (let i = 0; i < N; i++) {
+        const a0 = -Math.PI / 2 + Math.PI * i / N, a1 = -Math.PI / 2 + Math.PI * (i + 1) / N, am = (a0 + a1) / 2;
+        const A = pt(a0, hw, p.y), Bp = pt(a1, hw, p.y), ctr = [p.x, p.y, p.z];
+        road.quad(ctr, A, Bp, Bp, ASPHALT);
+        const ya = Math.min(p.y - .3, H(A[0], A[2]) - .3), yb = Math.min(p.y - .3, H(Bp[0], Bp[2]) - .3);
+        road.quad([A[0], ya, A[2]], A, Bp, [Bp[0], yb, Bp[2]], SKIRT, [Math.cos(am) * ox + Math.sin(am) * nx, 0, Math.cos(am) * oz + Math.sin(am) * nz]);
+        mark.quad(pt(a0, hw, p.y + .012), pt(a1, hw, p.y + .012), pt(a1, hw - cw, p.y + .012), pt(a0, hw - cw, p.y + .012), CURB);
+      }
     }
   });
 
