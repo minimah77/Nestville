@@ -10,7 +10,7 @@
 import * as THREE from './lib.js';
 import { XSTREETS, L, polyDist } from './world.js';
 
-XSTREETS.push(-148, -83, -39, 71, 115, 137);
+XSTREETS.push(-149, -83, -39, 71, 115, 137);
 
 function ready(fn) { if (window.__nv) fn(window.__nv); else setTimeout(() => ready(fn), 50); }
 ready(nv => {

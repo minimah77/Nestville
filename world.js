@@ -88,7 +88,23 @@ export function canalDist(x, z) { /* distance to the nearest canal edge (negativ
 /* ROW SPACING (the "airy suburb" fix): PITCH was 21 and the houses stood 16.5 apart, so roofs touched. Now every row is 30 apart (a real back lawn,
    then the street, then a grass verge with trees, then the sidewalk) and the houses in a row are 22 apart (see HSTEP in layout()). 6 rows: 0 to 5. */
 const PITCH = 30, NROWS = 5;
-export const laneZ = (r, x) => sz(x) + 16 + r * PITCH + 3 * Math.sin(x * .045 + r * .3);
+/* TOWN LAYOUT FIX (part 1): every row now follows ONE smooth curve (the shoreline, smoothed), and the rows are exact copies of it, PITCH apart.
+   Before, each row had its own little sine wobble and the raw shoreline bumps, so streets, sidewalks and house rows were wavy and not parallel.
+   The smoothed curve is never allowed to sink more than 3 units below the real shore, so row 0 can never slide into the lake. */
+const LANE_STEP = 4, LANE_X0 = -320, LANE_N = 161;
+let LANE_TAB = null;
+const laneBase = x => {
+  if (!LANE_TAB) {
+    const raw = []; for (let i = 0; i < LANE_N; i++) raw.push(sz(LANE_X0 + i * LANE_STEP));
+    const SIG = 5, K = []; let ks = 0; for (let j = -3 * SIG; j <= 3 * SIG; j++) { const w = Math.exp(-j * j / (2 * SIG * SIG)); K.push([j, w]); ks += w; }
+    LANE_TAB = raw.map((v, i) => { let a = 0; for (const [j, w] of K) a += w * raw[Math.min(LANE_N - 1, Math.max(0, i + j))]; return Math.max(a / ks, v - 3); });
+  }
+  const t = Math.min(LANE_N - 1.001, Math.max(0, (x - LANE_X0) / LANE_STEP)), i = Math.floor(t);
+  return LANE_TAB[i] + (LANE_TAB[i + 1] - LANE_TAB[i]) * (t - i);
+};
+export const laneZ = (r, x) => laneBase(x) + 16 + r * PITCH;
+/* the way a row runs at x (unit tangent), and the yaw that makes a building face the street: houses turn with the curve instead of all looking due north */
+export const laneYaw = x => Math.PI - Math.atan((laneBase(x + 2) - laneBase(x - 2)) / 4);
 
 /* ---------- STREETS ----------
    Every row has an asphalt street running in front of its sidewalk, like the photo: house, lawn, sidewalk, grass verge (street trees and lamps stand here), kerb, street.
@@ -205,29 +221,34 @@ export function layout() {
   const shopOK = (x, z) => Math.abs(x - xr(z)) > 16 && Math.hypot(x - cx, z - cz) > 28 && Math.hypot(x - L.plaza.x, z - L.plaza.z) > 20 &&
     Math.hypot(x - lc.x, z - lc.z) > 30 && baseH(x, z) > 1.2 && canalDist(x, z) > 5 && !nearSquare(x, z, 9) && !nearLM(x, z, 10) && !crossBlock(x, z, 9) &&
     !L.pent.some(p => Math.hypot(x - p.x, z - p.z) < 17) && !L.castles.some(c => Math.hypot(x - c.x, z - c.z) < c.r + 10);
-  const tryShop = (r, x, gap) => {
-    if (L.shops.length >= 6) return;
-    let z = laneZ(r, x) + 9.6;
+  /* TOWN LAYOUT FIX (part 1): SLOTS. Every house and every shop stands in a slot of one grid: HSTEP apart along the row (x = -160 + 22k), always the same
+     distance from its sidewalk, always turned to face the street (laneYaw). Before, houses had random offsets and shops stood anywhere (18 to 30 apart),
+     so the gaps were uneven. A shop simply takes the place of a house in its slot. */
+  const HSTEP = 22, SLOT_X = []; for (let x = -160; x < 162; x += HSTEP) SLOT_X.push(x);
+  const snapX = x => SLOT_X.reduce((b, v) => Math.abs(v - x) < Math.abs(b - x) ? v : b, SLOT_X[0]);
+  const slotZ = (r, x) => laneZ(r, x) + 9.6;
+  const faceAdj = x => 8.7 * (Math.cos(laneYaw(x) - Math.PI) - 1); /* a house turned to face the curve is closer to the sidewalk (measured along its front): its garden path gets that much shorter */
+  const tryShop = (r, x, gap, cap = 6) => {
+    if (L.shops.length >= cap) return;
+    x = snapX(x);
+    let z = slotZ(r, x);
     if (!shopOK(x, z)) return;
     if (L.shops.some(s => Math.hypot(x - s.x, z - s.z) < gap)) return;
     const n = backOverlap(x, z, r, 3.8); z -= n;
     const h = Math.max(1.3, baseH(x, z)), i = L.shops.length;
     addPad(x, z, 5.2, h, 4);
-    L.shops.push({ i, x, z, y: h, yaw: Math.PI, name: KIND[i], k: 'shop', w: 9, d: 7, hgt: 18, row: r, n });
+    L.shops.push({ i, x, z, y: h, yaw: laneYaw(x), name: KIND[i % 6] + (i >= 6 ? ' ' + (Math.floor(i / 6) + 1) : ''), k: 'shop', w: 9, d: 7, hgt: 18, row: r, n: n + faceAdj(x) });
   };
   for (const [r, x] of [[1, -122], [2, -72], [3, 40], [4, 112], [2, 126], [5, -24], [3, -110], [4, -60], [5, 70], [1, 84], [3, -40], [2, 22]]) tryShop(r, x, 34);
-  for (let r = 0; r < NROWS && L.shops.length < 6; r++) for (let x = -150; x <= 150; x += 14) tryShop(r, x, 26);
+  for (let r = 0; r < NROWS && L.shops.length < 6; r++) for (const x of SLOT_X) tryShop(r, x, 26);
+  /* 50 MORE SHOPS (56 in all, all for sale): a shopping district that starts in the middle of the village and spreads out sideways,
+     so the shops line the streets near the church first. shopOK keeps them off the river, squares, cross streets and landmarks. */
+  { const sxs = SLOT_X.slice().sort((a, b) => Math.abs(a) - Math.abs(b));
+    for (const x of sxs) for (const r of [2, 3, 1, 4, 0, 5]) tryShop(r, x, 19, 56); }
 
-  /* houses: rows facing the sidewalks. HSTEP = distance between two houses in a row (was 16.5: the roofs touched). */
-  const HSTEP = 22;
+  /* houses: rows facing the sidewalks, one per slot (HSTEP and SLOT_X are defined above with the shops). */
   const cands = [];
-  for (let r = 0; r <= NROWS; r++) {
-    const rnd = (a) => { const s = Math.sin(a * 91.7 + r * 13.1) * 9137.3; return s - Math.floor(s); };
-    for (let k = 0, x = -160; x < 162; k++, x += HSTEP) {
-      const xx = x + (rnd(k) - .5) * 2.4, zz = laneZ(r, xx) + 9.6 + (rnd(k + 40) - .5) * 1.2;
-      cands.push({ x: xx, z: zz, yaw: Math.PI + (rnd(k + 90) - .5) * .14, row: r });
-    }
-  }
+  for (let r = 0; r <= NROWS; r++) for (const x of SLOT_X) cands.push({ x, z: slotZ(r, x), yaw: laneYaw(x), row: r });
   const ok = c => {
     if (Math.abs(c.x - xr(c.z)) < 10.5) return false;
     if (Math.hypot(c.x - cx, c.z - cz) < 19) return false;
@@ -250,7 +271,7 @@ export function layout() {
     const n = backOverlap(c.x, c.z, c.row, 4.3); c.z -= n; /* keep the house out of the street behind it */
     const h = baseH(c.x, c.z);
     addPad(c.x, c.z, 4.6, h, 4.5);
-    L.houses.push({ idx: i, x: c.x, z: c.z, y: h, yaw: c.yaw, w: 9, d: 8, hgt: 14, row: c.row, n });
+    L.houses.push({ idx: i, x: c.x, z: c.z, y: h, yaw: c.yaw, w: 9, d: 8, hgt: 14, row: c.row, n: n + faceAdj(c.x) });
   });
 
   /* ---------- hillside quarters ----------
@@ -552,7 +573,7 @@ export function layout() {
      Groups that cannot be reached within LINK_MAX stay on their own (a block cut off by the lake, for example).
      The village rows, the bridges and the cottage rows (paths.js) count as part of the network.
      Tune: LINK_MAX (longest link), LINK_W (link width), TOUCH (two walks closer than this count as already joined). */
-  { const LINK_MAX = 150, LINK_W = 2.2, TOUCH = 6.5;
+  { const LINK_MAX = 150, LINK_W = 2.4, TOUCH = 6.5;
     const polys = L.walks.map(w => ({ pts: w.pts, own: true }));
     /* parts of the network that are not in L.walks: the bridges and the cottage rows, the promenade and the N-S cottage walks */
     L.bridges.forEach(b => polys.push({ pts: [[b.x - 10, b.zw], [b.x, (b.zw + b.ze) / 2], [b.x + 10, b.ze]] }));
