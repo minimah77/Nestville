@@ -5,7 +5,8 @@
    Every street now ends in a half round turning bay with a curb all round, so no street stops dead against the grass.
    Runs next to town.js and extras.js and reads the same scene (window.__nv). Add  import './streets.js';  where extras.js is imported.
    Colours are at the top: tune ASPHALT / CURB / PAINT to taste.
-   Road look pass (photo): bolder curbs (CURB_W), longer and thicker centre dashes (DASH, GAP, DASH_W), bigger zebra stripes. */
+   Road look pass (photo): bolder curbs (CURB_W), longer and thicker centre dashes (DASH, GAP, DASH_W), bigger zebra stripes.
+   Cross streets (roads.js): curbs now also stop short of an intersection on the narrower cross street, so no curb stub lies on the crossing road. */
 import * as THREE from './lib.js';
 import { H, L, ROAD_W, XW } from './world.js';
 import './polish.js'; /* smaller sun + natural water (polish.js) */
@@ -100,7 +101,7 @@ ready(nv => {
       road.quad([a.R[0], a.yr, a.R[1]], [a.R[0], a.y, a.R[1]], [c.R[0], c.y, c.R[1]], [c.R[0], c.yr, c.R[1]], SKIRT, [a.tz, 0, -a.tx]);
       /* light curbs along both edges (not at an intersection, where the other street crosses) */
       const mid = at(S, (a.s + c.s) / 2);
-      if (!nearInter(mid.x, mid.z, hw + .6)) {
+      if (!nearInter(mid.x, mid.z, Math.max(hw, ROAD_W / 2) + .6)) {
         const k = cw / (2 * hw), f = (P, Q, t, y) => [P[0] + (Q[0] - P[0]) * t, y, P[1] + (Q[1] - P[1]) * t];
         const y0 = .012;
         mark.quad([a.L[0], a.y + y0, a.L[1]], f(a.L, a.R, k, a.y + y0), f(c.L, c.R, k, c.y + y0), [c.L[0], c.y + y0, c.L[1]], CURB);
