@@ -85,16 +85,17 @@ export function canalDist(x, z) { /* distance to the nearest canal edge (negativ
   }
   return best;
 }
-const PITCH = 21, NROWS = 6; /* row spacing: was 18.5, opened up so a street fits behind every row of houses */
+/* ROW SPACING (the "airy suburb" fix): PITCH was 21 and the houses stood 16.5 apart, so roofs touched. Now every row is 30 apart (a real back lawn,
+   then the street, then a grass verge with trees, then the sidewalk) and the houses in a row are 22 apart (see HSTEP in layout()). 6 rows: 0 to 5. */
+const PITCH = 30, NROWS = 5;
 export const laneZ = (r, x) => sz(x) + 16 + r * PITCH + 3 * Math.sin(x * .045 + r * .3);
 
-/* ---------- STREETS (step 1 of the "like the photo" makeover) ----------
-   The E-W canal is gone. Every row now has an asphalt street running in front of its sidewalk, and a few narrow cross streets run N-S
-   through the gaps between houses (gap centres of the 16.5 spacing), so the blocks look like the photo. The river stays as the one canal.
-   ROAD_W: width of every street. ROAD_OFF: street centre relative to laneZ (so the street edge touches the row sidewalk).
-   XSTREETS: x of the cross streets. XW: their half width. To add or move one, edit XSTREETS (use a house-gap centre: -151.75 + 16.5 * k). */
-export const ROAD_W = 4.6, ROAD_OFF = -2.6, XW = 2.0;
-export const XSTREETS = [-118.75, -69.25, 46.25, 95.75];
+/* ---------- STREETS ----------
+   Every row has an asphalt street running in front of its sidewalk, like the photo: house, lawn, sidewalk, grass verge (street trees and lamps stand here), kerb, street.
+   The streets are drawn by streets.js (loaded from index.html). The little N-S cross streets are gone (XSTREETS is empty) so the sidewalks run unbroken and no tree or lamp can end up in a road.
+   ROAD_W: width of every street. ROAD_OFF: street centre relative to laneZ (so a 3 unit grass verge stays between the sidewalk and the kerb). */
+export const ROAD_W = 6, ROAD_OFF = -7, XW = 2.0;
+export const XSTREETS = [];
 export const roadZ = (r, x) => laneZ(r, x) + ROAD_OFF;
 /* is (x, z) closer than m to a cross street (only counting the stretch between the first and the last row street)? */
 /* how far (>= 0) a footprint (half depth hd, half width 4.8) whose centre is (x, z) in row r pokes into the street behind it (row r + 1).
@@ -217,11 +218,12 @@ export function layout() {
   for (const [r, x] of [[1, -122], [2, -72], [3, 40], [4, 112], [2, 126], [5, -24], [3, -110], [4, -60], [5, 70], [1, 84], [3, -40], [2, 22]]) tryShop(r, x, 34);
   for (let r = 0; r < NROWS && L.shops.length < 6; r++) for (let x = -150; x <= 150; x += 14) tryShop(r, x, 26);
 
-  /* houses: rows facing the sidewalks */
+  /* houses: rows facing the sidewalks. HSTEP = distance between two houses in a row (was 16.5: the roofs touched). */
+  const HSTEP = 22;
   const cands = [];
   for (let r = 0; r <= NROWS; r++) {
     const rnd = (a) => { const s = Math.sin(a * 91.7 + r * 13.1) * 9137.3; return s - Math.floor(s); };
-    for (let k = 0, x = -160; x < 162; k++, x += 16.5) {
+    for (let k = 0, x = -160; x < 162; k++, x += HSTEP) {
       const xx = x + (rnd(k) - .5) * 2.4, zz = laneZ(r, xx) + 9.6 + (rnd(k + 40) - .5) * 1.2;
       cands.push({ x: xx, z: zz, yaw: Math.PI + (rnd(k + 90) - .5) * .14, row: r });
     }
@@ -237,11 +239,11 @@ export function layout() {
     if (canalDist(c.x, c.z) < 5) return false;
     if (crossBlock(c.x, c.z, 4.6)) return false;
     for (const p of L.pent) if (Math.hypot(c.x - p.x, c.z - p.z) < 17) return false;
-    for (const s of L.shops) if (Math.hypot(c.x - s.x, c.z - s.z) < 12) return false;
+    for (const s of L.shops) if (Math.hypot(c.x - s.x, c.z - s.z) < 14) return false;
     for (const cs of L.castles) if (Math.hypot(c.x - cs.x, c.z - cs.z) < cs.r + 10) return false;
     return true;
   };
-  /* EVERY valid plot is used now (about 149 houses, it was capped at 120), handed out front-row first so early residents are in open view, not behind the church or castle */
+  /* EVERY valid plot is used, handed out front-row first so early residents are in open view, not behind the church or castle */
   const front = c => Math.hypot(c.x - 24, (c.z - (z0 + 26)) * 1.6);
   const good = cands.filter(ok).sort((a, b) => Math.hypot(a.x, (a.z - (z0 + 56)) * 1.4) - Math.hypot(b.x, (b.z - (z0 + 56)) * 1.4)).slice(0, 400).sort((a, b) => front(a) - front(b));
   good.forEach((c, i) => {
@@ -274,17 +276,16 @@ export function layout() {
     { cx: 325, cz: 110, cols: 6, rows: 2, yaw: -Math.PI / 2 },
     /* the north meadow, second tier */
     { cx: -195, cz: -345, cols: 5, rows: 2, yaw: 0 }, { cx: 195, cz: -345, cols: 5, rows: 2, yaw: 0 },
-    { cx: -300, cz: -290, cols: 4, rows: 2, yaw: 0 }, { cx: 300, cz: -290, cols: 4, rows: 2, yaw: 0 },
-    /* the gentle slope just south of the village, fronts looking north to the lake (further south it gets too steep) */
-    { cx: -95, cz: 215, cols: 8, rows: 2, yaw: Math.PI }, { cx: 105, cz: 215, cols: 8, rows: 2, yaw: Math.PI },
-    { cx: -200, cz: 220, cols: 5, rows: 2, yaw: Math.PI }, { cx: 205, cz: 220, cols: 5, rows: 2, yaw: Math.PI }
+    { cx: -300, cz: -290, cols: 4, rows: 2, yaw: 0 }, { cx: 300, cz: -290, cols: 4, rows: 2, yaw: 0 }
+    /* (the four blocks south of the village are gone: the village rows now reach that far) */
   ];
-  const VS = 18, VR = 29, FRONT = 11.6; /* spacing along a row, spacing between rows, sidewalk distance in front of the house centre */
-  /* AUTO-FILL: more blocks laid over every free stretch of land, nearest to the middle first, until the village and meadow houses reach HOUSE_CAP
-     (the 100 old-town houses come after, so the whole town ends up at about 700). A house is skipped if it would land on water, a steep slope, another house,
-     the village, the old towns, the cottages or the river. Lower HOUSE_CAP for fewer houses. */
+  const VS = 22, VR = 34, FRONT = 11.6; /* spacing along a row (was 18), spacing between rows (was 29), sidewalk distance in front of the house centre */
+  const GAPH = 19, GAPS = 17, GAPP = 20; /* the closest two houses / a house and a shop / a house and a penthouse may stand (was 12.5, 14, 18: the roofs overlapped) */
+  /* AUTO-FILL: more blocks laid over every free stretch of land, nearest to the middle first, until the village and meadow houses reach HOUSE_CAP.
+     A house is skipped if it would land on water, a steep slope, another house,
+     the village, the old towns, the cottages or the river. Lower HOUSE_CAP for fewer houses. Each block is 6 x 2 houses, 126 x 64 units, and the blocks tile exactly. */
   const HOUSE_CAP = 605, AUTO = [];
-  for (let cx = -345; cx <= 345; cx += 90) for (let cz = -385; cz <= 235; cz += 52) AUTO.push({ cx, cz, cols: 6, rows: 2, vs: 15, vr: 26, yaw: Math.round(Math.atan2(LAKE0.x - cx, LAKE0.z - cz) / (Math.PI / 2)) * (Math.PI / 2), auto: 1 });
+  for (let cx = -315; cx <= 315; cx += 126) for (let cz = -385; cz <= 235; cz += 64) AUTO.push({ cx, cz, cols: 6, rows: 2, vs: 21, vr: 32, yaw: Math.round(Math.atan2(LAKE0.x - cx, LAKE0.z - cz) / (Math.PI / 2)) * (Math.PI / 2), auto: 1 });
   AUTO.sort((p, q) => Math.hypot(p.cx * .7, p.cz + 60) - Math.hypot(q.cx * .7, q.cz + 60));
   BLOCKS.push(...AUTO);
   const villas = [], nearC = (x, z, m) => L.castles.some(c => Math.hypot(x - c.x, z - c.z) < c.r + m) || L.lm.some(q => Math.hypot(x - q.x, z - q.z) < q.r + m - 2);
@@ -305,7 +306,7 @@ export function layout() {
         if (L.castles.some(c => Math.hypot(x - c.x, z - c.z) < c.r + 26)) continue;
         if (nearLM(x, z, 12)) continue;
         if (L.houses.length >= HOUSE_CAP) continue;
-        if (L.houses.some(v => Math.hypot(x - v.x, z - v.z) < 12.5) || L.shops.some(v => Math.hypot(x - v.x, z - v.z) < 14) || L.pent.some(v => Math.hypot(x - v.x, z - v.z) < 18)) continue;
+        if (L.houses.some(v => Math.hypot(x - v.x, z - v.z) < GAPH) || L.shops.some(v => Math.hypot(x - v.x, z - v.z) < GAPS) || L.pent.some(v => Math.hypot(x - v.x, z - v.z) < GAPP)) continue;
         if (Math.abs(x) < 125 && z > -325 && z < -165) continue; /* the cottage district */
         if (bk.auto && ((Math.abs(x) < 292 && z > -80 && z < 205) || (z > 120 && Math.abs(x - xr(z)) < 16))) continue; /* the village, the old towns and the river */
         addPad(x, z, 5.6, h, 4.5); addPad(gx, gz, 6.6, h, 5); addPad(x + lx * 7.5, z + lz * 7.5, 3.4, h, 4); /* house, back garden, front gate */
@@ -353,12 +354,12 @@ export function layout() {
     }
   });
 
-  /* ---------- old town districts: 100 empty houses, west and east of the village ----------
+  /* ---------- old town districts: empty houses, west and east of the village ----------
      Two cobbled quarters like the photo: two pedestrian streets (a wide cobbled sidewalk, no cars) with townhouses facing each other on both sides,
      and a green park strip between the streets with a fountain square and a gazebo square (extras.js builds the gazebos, benches and cobbles).
      All of these houses are claimable plots handed out LAST, so they stay empty until the rest is taken.
-     To move a district change cx / zc; ROWS is the number of houses on each side of a street (the target total is 100, extra houses are dropped). */
-  const OLD = [{ cx: -222, zc: 45 }, { cx: 226, zc: 45 }], OROWS = 17, OSP = 13.5, OOFF = [[-52, Math.PI / 2], [-20, -Math.PI / 2], [20, Math.PI / 2], [52, -Math.PI / 2]], OSTREET = 36;
+     To move a district change cx / zc; OROWS is the number of houses on each side of a street, OSP the distance between two of them (was 13.5: the roofs touched; the target total is 100, extra houses are dropped). */
+  const OLD = [{ cx: -222, zc: 45 }, { cx: 226, zc: 45 }], OROWS = 17, OSP = 17, OOFF = [[-52, Math.PI / 2], [-20, -Math.PI / 2], [20, Math.PI / 2], [52, -Math.PI / 2]], OSTREET = 36;
   L.gazebos = [];
   const oldCand = [];
   for (const d of OLD) {
@@ -375,7 +376,7 @@ export function layout() {
       if (Math.hypot(baseH(x + 6, z) - baseH(x - 6, z), baseH(x, z + 6) - baseH(x, z - 6)) / 12 > .2) continue;
       if (L.castles.some(c => Math.hypot(x - c.x, z - c.z) < c.r + 14)) continue;
       if (nearLM(x, z, 10)) continue;
-      if (L.houses.some(v => Math.hypot(x - v.x, z - v.z) < 13) || L.shops.some(v => Math.hypot(x - v.x, z - v.z) < 13) || L.pent.some(v => Math.hypot(x - v.x, z - v.z) < 16)) continue;
+      if (L.houses.some(v => Math.hypot(x - v.x, z - v.z) < 15) || L.shops.some(v => Math.hypot(x - v.x, z - v.z) < 15) || L.pent.some(v => Math.hypot(x - v.x, z - v.z) < 16)) continue;
       oldCand.push({ x, z, yaw, h, d });
     }
   }
@@ -478,7 +479,7 @@ export function layout() {
     }
     flush();
   }
-  for (const X of XSTREETS) { /* the cross streets, from the row-0 street to the row-6 street */
+  for (const X of XSTREETS) { /* the cross streets, from the row-0 street to the last row street (none at the moment) */
     let cur = []; const z1 = roadZ(NROWS, X);
     const flush = () => { if (cur.length > 1) L.streets.push({ pts: cur, k: 'ns', x: X }); cur = []; };
     for (let z = roadZ(0, X); z <= z1 + .01; z += 3) { if (!roadOK(X, z, false)) flush(); else cur.push([X, z]); }
