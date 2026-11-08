@@ -1,27 +1,29 @@
 /* Nestville bridges (replaces bridge() and fbridge() in build.js).
    Fixes: the arch stones no longer poke up through the deck; decks follow the real sidewalk heights at both ends (they can slope),
-   and the footbridge has no stone lip at its ends. */
+   and the footbridge has no stone lip at its ends.
+   Look: every bridge is BROWN now (timber and brown brick), like the big timber bridge. */
 import { qd } from './build.js';
 
 /* the footbridge: size, and the deck height at t (0 = north end, 1 = south end) */
 export const FB = { L: 12.6, W: 3.2, N: 14, hump: .5 };
 export const fbY = (yN, yS, t) => yN + (yS - yN) * t + FB.hump * Math.sin(Math.PI * t) + .004;
 
-/* stone bridge over the river: 20 long, 6 wide. The deck top sits at y+1 and is tilted by `slope` (radians) along its length. */
+/* brown bridge over the river: 20 long, 6 wide. The deck top sits at y+1 and is tilted by `slope` (radians) along its length. */
 export function bridge(b, x, y, z, yaw = 0, slope = 0) {
   b.at(x, y, z, yaw);
-  const STONE = '#cbc3b0', WALL = '#b4ac98', DARK = '#a69e8b';
+  const STONE = '#8a5a3a', WALL = '#7a4b30', DARK = '#5e3a24';
   b.sub(0, 0, 0, 0, () => {
     b.box(0, 0, 0, 20, 1, 6, STONE);
     b.box(0, 1, 2.7, 20, 1.1, .6, WALL); b.box(0, 1, -2.7, 20, 1.1, .6, WALL);
+    b.box(0, 2.1, 2.7, 20.2, .2, .8, '#a8744c'); b.box(0, 2.1, -2.7, 20.2, .2, .8, '#a8744c'); /* light cap on both parapets */
     for (const s of [-1, 1]) { b.box(s * 9.6, 1, 2.7, .9, 1.7, .9, WALL); b.box(s * 9.6, 1, -2.7, .9, 1.7, .9, WALL); }
     b.box(-8.2, -3.6, 0, 3.4, 4.6, 6, DARK); b.box(8.2, -3.6, 0, 3.4, 4.6, 6, DARK); /* abutments, top flush with the deck */
-    b.box(0, -.3, 0, 13, .3, 5.6, '#9a927f'); /* underside between the abutments */
-    /* stone arch ring under the deck, on both faces: crown just below the deck */
+    b.box(0, -.3, 0, 13, .3, 5.6, '#6a4429'); /* underside between the abutments */
+    /* brown brick arch ring under the deck, on both faces: crown just below the deck */
     const R = 8.75, cy0 = -9.0, n = 11;
     for (let i = 0; i < n; i++) {
       const a = (42 + 96 * (i + .5) / n) * Math.PI / 180, cx = Math.cos(a) * R, cy = Math.sin(a) * R + cy0;
-      for (const s of [-1, 1]) b.sub(cx, cy, s * 2.8, 0, () => b.box(0, -.4, 0, 1.15, .8, .5, i % 2 ? '#bdb5a2' : '#c9c1ae'), a - Math.PI / 2);
+      for (const s of [-1, 1]) b.sub(cx, cy, s * 2.8, 0, () => b.box(0, -.4, 0, 1.15, .8, .5, i % 2 ? '#7d5030' : '#9a6a44'), a - Math.PI / 2);
     }
   }, slope);
 }
@@ -30,7 +32,7 @@ export function bridge(b, x, y, z, yaw = 0, slope = 0) {
    yN / yS are the sidewalk top heights at its north and south end, so both ends meet the pavement exactly. */
 export function fbridge(b, x, z, yN, yS) {
   b.at(x, 0, z, 0);
-  const { L, W, N } = FB, DECK = '#d9d2c0', STONE = '#c3bba6', DARK = '#a79f8b', CAP = '#e3dccb', hw = W / 2, th = .45, ph = .55, pt = .26;
+  const { L, W, N } = FB, DECK = '#8a5a3a', STONE = '#7a4b30', DARK = '#5e3a24', CAP = '#a8744c', hw = W / 2, th = .45, ph = .55, pt = .26;
   for (let i = 0; i < N; i++) {
     const t0 = i / N, t1 = (i + 1) / N, z0 = -L / 2 + t0 * L, z1 = -L / 2 + t1 * L, h0 = fbY(yN, yS, t0), h1 = fbY(yN, yS, t1);
     qd(b, [-hw, h0, z0], [hw, h0, z0], [hw, h1, z1], [-hw, h1, z1], [0, 1, 0], DECK);
