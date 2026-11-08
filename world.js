@@ -47,9 +47,15 @@ export function addPad(x, z, r, h, blend = 5) { pads.push({ x, z, r, h: h === un
 /* river */
 export const xr = z => 12 + 9 * Math.sin(z * .05 + .9);
 export const RIVER_Z0 = 140, RIVER_Z1 = 206; /* the river is the main canal in town; this is the wild stretch upstream */
+/* RIVER_SRC: the SOURCE of the river. The stream used to stop half way up the valley, and above that point the channel kept being dug deeper and deeper into the rising ground (the dark gorge).
+   Now the channel follows the ground all the way up to RIVER_SRC and ends in a round spring pool: H() digs the pool, spring.js draws the water and the boulders.
+   The water level only ever rises going upstream (so the water always runs downhill). Move the source by changing RIVER_SRC (keep it between 220 and 380). */
+export const RIVER_SRC = 332;
 const riverSurf = z => mix(WL, Math.max(baseH(xr(z), z) - .5, WL), sm(138, 185, z));
-const RS = []; for (let z = 0; z <= 260; z += 2) RS.push(riverSurf(z));
-export const Rs = z => { const t = Math.min(Math.max(z, 0), 258) / 2, i = Math.floor(t); return mix(RS[i], RS[Math.min(i + 1, 129)], t - i); };
+const RZ = 340, RS = []; for (let z = 0; z <= RZ; z += 2) RS.push(riverSurf(z));
+for (let pass = 0; pass < 4; pass++) for (let i = 94; i < RS.length - 1; i++) RS[i] = (RS[i - 1] + RS[i] * 2 + RS[i + 1]) / 4; /* smooth the wild stretch (from z = 188 up) */
+for (let i = 1; i < RS.length; i++) RS[i] = Math.max(RS[i], RS[i - 1]); /* never lower than downstream: water flows downhill */
+export const Rs = z => { const t = Math.min(Math.max(z, 0), RZ - 2) / 2, i = Math.floor(t); return mix(RS[i], RS[Math.min(i + 1, RS.length - 1)], t - i); };
 
 export function H(x, z) {
   let h = baseH(x, z);
@@ -59,9 +65,11 @@ export function H(x, z) {
     const w = 1 - sm(p.r, R, Math.sqrt(d2));
     h = mix(h, p.h, w);
   }
-  if (z > 135) {
-    const d = Math.abs(x - xr(z));
-    if (d < 7) h = mix(h, Math.min(h, Rs(z) - 1.3), 1 - sm(3.2, 6.8, d));
+  if (z > 135 && z < RIVER_SRC + 14) { /* the river channel, all the way up to the spring pool at its source */
+    const zc = Math.min(z, RIVER_SRC), d = Math.hypot(x - xr(zc), z - zc);
+    if (d < 7) h = mix(h, Math.min(h, Rs(zc) - 1.3), 1 - sm(3.2, 6.8, d));
+    const ds = Math.hypot(x - xr(RIVER_SRC), z - RIVER_SRC); /* the round spring pool (water radius 8.6 in spring.js) */
+    if (ds < 9) h = mix(h, Math.min(h, Rs(RIVER_SRC) - 2.2), 1 - sm(6, 8.8, ds));
   }
   if (x > TOWN.x0 - 10 && x < TOWN.x1 + 10 && z > TOWN.z0 - 20 && z < TOWN.z1) {
     const cd = canalDist(x, z);
@@ -627,6 +635,66 @@ export function layout() {
       main.push(...rest[best.gi], ...dense(best.r, 8)); rest.splice(best.gi, 1);
     }
     L.linkInfo = { linked: guard - 1, left: rest.length, lonely: rest.map(g => g[0].map(Math.round)) };
+
+    /* ---------- HUBS: a big fountain plaza (and the mall) wherever a link walk joins two neighbourhoods ----------
+       The sidewalks of two neighbourhoods used to meet in the middle of the grass with nothing there. Now the longest link walks get a round plaza at their middle:
+       the walk splits in two, each half runs up to a ring walk (radius RP) round a big fountain, so the two sidewalks are joined BY the fountain.
+       The first hub that has enough free ground beside it also gets the mall: a two-storey glass-fronted shopping mall (landmarks.js, L.lm id 'mall') whose terrace runs out to the ring.
+       A hub is only built where the whole ring (and, for the mall, the whole footprint) is clear of water, houses, streets, castles and other sidewalks.
+       If anything goes wrong in here the village is simply left as it was.
+       Tune: HUB_MAX (how many fountain plazas), RP (ring radius), HUB_GAP (closest two plazas may be), MALL_D (distance from the fountain to the mall's middle). */
+    try {
+      allowSt = false;
+      const HUB_MAX = 6, RP = 9.5, HUB_GAP = 45, MALL_D = 28;
+      let hubs = 0, mallDone = false;
+      const cand = L.walks.filter(w => w.link && w.pts.length >= 12).sort((a, b) => b.pts.length - a.pts.length);
+      for (const w of cand) {
+        if (hubs >= HUB_MAX) break;
+        const n = w.pts.length, m = w.pts[n >> 1];
+        if (L.squares.some(q => Math.hypot(q.x - m[0], q.z - m[1]) < HUB_GAP)) continue;
+        if (!clear(m[0], m[1])) continue;
+        const ring = []; let ringOK = true;
+        for (let k = 0; k < 24 && ringOK; k++) { const a = k / 24 * Math.PI * 2, x = m[0] + Math.cos(a) * RP, z = m[1] + Math.sin(a) * RP; if (clear(x, z)) ring.push([x, z]); else ringOK = false; }
+        if (!ringOK) continue;
+        const inside = w.pts.map(p => Math.hypot(p[0] - m[0], p[1] - m[1]) < RP + .5);
+        const i0 = inside.indexOf(true), i1 = inside.lastIndexOf(true);
+        if (i0 < 3 || n - 1 - i1 < 3) continue;
+        const edge = p => { const dx = p[0] - m[0], dz = p[1] - m[1], l = Math.hypot(dx, dz) || 1; return [m[0] + dx / l * RP, m[1] + dz / l * RP]; };
+        const A = w.pts.slice(0, i0).concat([edge(w.pts[i0 - 1])]);
+        const Bw = [edge(w.pts[i1 + 1])].concat(w.pts.slice(i1 + 1));
+        const ringWalk = { pts: ring.concat([ring[0]]), w: 2.4, kind: 'hill', hub: true };
+        const bw = { pts: Bw, w: w.w, kind: 'hill', link: true };
+        /* the mall: on whichever side of the link has room, front looking at the fountain */
+        let mallAt = null;
+        if (!mallDone) {
+          const dx = A[A.length - 1][0] - Bw[0][0], dz = A[A.length - 1][1] - Bw[0][1], l = Math.hypot(dx, dz) || 1, tx = dx / l, tz = dz / l;
+          const others = L.walks.filter(o => o !== w);
+          const walkNear = (x, z) => others.some(o => o.pts.some(p => Math.abs(p[0] - x) < 4 && Math.abs(p[1] - z) < 4 && Math.hypot(p[0] - x, p[1] - z) < 4));
+          for (const s of [1, -1]) {
+            const nx = -tz * s, nz = tx * s, mx = m[0] + nx * MALL_D, mz = m[1] + nz * MALL_D, fx = -nx, fz = -nz; /* (fx, fz): the way the mall front looks, back to the fountain */
+            const yaw = Math.atan2(fx, fz), ax = Math.cos(yaw), az = -Math.sin(yaw);
+            let fits = true;
+            for (let u = -21; u <= 21 && fits; u += 7) for (let v = -8; v <= 17 && fits; v += 5) {
+              const x = mx + ax * u + fx * v, z = mz + az * u + fz * v;
+              if (!clear(x, z) || walkNear(x, z) || L.squares.some(q => Math.hypot(q.x - x, q.z - z) < q.r + 2 && Math.hypot(q.x - m[0], q.z - m[1]) > 1)) fits = false;
+            }
+            if (fits) { mallAt = { x: mx, z: mz, yaw }; break; }
+          }
+        }
+        /* build it */
+        w.pts = A; w.link = true;
+        L.walks.push(bw, ringWalk);
+        if (mallAt) {
+          addPad(mallAt.x, mallAt.z, 26, undefined, 6);
+          mallDone = true;
+        }
+        addPad(m[0], m[1], RP + 1.5, undefined, 5);
+        const q = { x: m[0], z: m[1], r: 8 }; L.squares.push(q); plazas.push(q);
+        if (mallAt) L.lm.push({ id: 'mall', x: mallAt.x, z: mallAt.z, y: H(mallAt.x, mallAt.z), r: 26, yaw: mallAt.yaw, name: 'Nestville Mall', keys: ['mall', 'shopping mall', 'shopping', 'center', 'centre'], blurb: 'A two-storey shopping mall with big glass shop windows, a striped awning, a glass entrance hall and a terrace that opens onto a fountain plaza joining the sidewalks.' });
+        hubs++;
+      }
+      L.linkInfo.hubs = hubs; L.linkInfo.mall = mallDone;
+    } catch (err) { L.linkInfo.hubError = String(err); }
   }
   return L;
 }
