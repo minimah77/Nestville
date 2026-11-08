@@ -68,6 +68,11 @@ html,body{margin:0;height:100%;overflow:hidden;background:#8dbad6;color:var(--in
 @keyframes b{50%{transform:translateY(-6px);opacity:.4}}
 #tools .ib span{display:none}
 #views{position:fixed;right:12px;top:calc(env(safe-area-inset-top,0px) + 60px);display:flex;flex-direction:column;gap:2px;border-radius:16px;padding:3px}
+#walkpad{position:fixed;right:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 82px);display:none;flex-direction:column;gap:6px;border-radius:22px;padding:6px;touch-action:none;user-select:none;-webkit-user-select:none}
+#walkpad.on{display:flex}
+#walkpad .ib{width:54px;height:54px;border-radius:17px;background:rgba(255,255,255,.55)}
+#walkpad .ib:active{background:#fff}
+#walkpad .ib svg{width:26px;height:26px;stroke-width:2.4}
 @media(prefers-reduced-motion:reduce){#live i,.dots i{animation:none}#sheet{transition:none}}
 </style></head><body>
 <div id="stage" aria-label="Nestville 3D village"></div>
@@ -85,8 +90,10 @@ html,body{margin:0;height:100%;overflow:hidden;background:#8dbad6;color:var(--in
  <button class="ib on" id="vHome" data-v="orbit" aria-label="Village overview" title="Village overview"><svg viewBox="0 0 24 24"><path d="M3 20h18M5 20v-8l5-4 5 4v8M15 20v-5l3-2.5 3 2.5v5"/></svg></button>
  <button class="ib" id="vWalk" data-v="walk" aria-label="Canal walk (tap again for the next canal)" title="Canal walk"><svg viewBox="0 0 24 24"><path d="M3 9c2-2 4-2 6 0s4 2 6 0 4-2 6 0M3 15c2-2 4-2 6 0s4 2 6 0 4-2 6 0"/></svg></button>
  <button class="ib" id="vCot" aria-label="Cottages on the north shore" title="Cottages"><svg viewBox="0 0 24 24"><path d="M3 20h18M5 20v-7l5-4 5 4v7M8 20v-3h4v3"/><circle cx="18" cy="14" r="1.8"/><path d="M18 16v4"/></svg></button>
+ <button class="ib" id="vSeason" aria-label="Season. Tap to change" title="Season"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
  <button class="ib" id="vPh" data-v="ph" aria-label="Penthouse view (tap again for the next penthouse)" title="Penthouse view"><svg viewBox="0 0 24 24"><rect x="7" y="3" width="10" height="18" rx="1.5"/><path d="M10.5 7h3M10.5 11h3M10.5 15h3"/></svg></button>
 </div>
+<div id="walkpad" class="gl" aria-label="Walk controls"><button class="ib" id="wFwd" aria-label="Walk forward"><svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg></button><button class="ib" id="wBack" aria-label="Walk back"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button></div>
 <div id="card" class="gl gl2"></div>
 <div id="bar" class="gl"><input id="q" placeholder="Find your resident: @yourname" autocapitalize="none" autocomplete="off" enterkeyhint="search" aria-label="Find a resident"><button class="pb" id="bFind">Find</button></div>
 <div id="sheet" class="gl gl2" role="dialog" aria-label="Menu"><div class="grab"></div>
@@ -95,4 +102,6 @@ html,body{margin:0;height:100%;overflow:hidden;background:#8dbad6;color:var(--in
 <div id="load"><div>Nestville</div><div class="dots"><i></i><i></i><i></i></div><small id="loadmsg">Building your village</small></div>
 <script type="module" src="town.js"></script>
 <script type="module" src="economy.js"></script>
+<script type="module" src="seasons.js"></script>
+<script type="module" src="walkpad.js"></script>
 </body></html>
