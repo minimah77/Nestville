@@ -207,7 +207,7 @@ ready(nv => {
      - Street trees get a stone-edged planter (tree pit).
      Tune the numbers just below. */
   const WALKC = '#d9d3c5', CURBC = '#e6e1d3', JOINTC = '#bdb7a8', STONEC = '#cdc6b6', CAPC = '#e8e3d6', SOILC = '#5b4737', EDGEC = '#c4beaf';
-  const CB2 = .42, SW = 2.6, SW_NS = 2.2, CURB_H = .17, WALK_H = .14, ROW_EDGE = -ROAD_OFF - .3 + .15; /* ROW_EDGE: distance from a row street's middle to the north edge of its row sidewalk (+ a little overlap) */
+  const CB2 = .42, SW = 3.0, SW_NS = 2.6, CURB_H = .17, WALK_H = .14, ROW_EDGE = -ROAD_OFF - .3 + .15; /* ROW_EDGE: distance from a row street's middle to the north edge of its row sidewalk (+ a little overlap) */
   const MARG = .02; /* an edge counts as clear of another street when it is at least this far from its asphalt */
   const side = Builder(), bandSegs = [];
   const sq = (a, b, c, d, col, n = [0, 1, 0]) => wind(a, b, c, d, n) ? side.quad(a, d, c, b, col, n) : side.quad(a, b, c, d, col, n);
