@@ -4,6 +4,7 @@ import { paths, pavement } from './paths.js';
 import { MB, chalet, townhouse, openLot, penthouse, castleLake, castleEast, castleIsland, watchtower, church, fountain, shop, cottage, pier, boat, lamp, K } from './build.js';
 import { H, B, TOWN, L, layout, baseH, xr, Rs, roadDist, plazas, sz, laneZ, canals, canalDist, WL, RIVER_Z0, RIVER_Z1, sm, fbm } from './world.js';
 import { load, save, PH_PRICES, SHOP_PRICE, COT_PRICES, KINDS, IG_DM, CITIZENS, fmt, avatar, stats, rng } from './shared.js';
+import { landmarks } from './landmarks.js';
 import './folks.js'; /* the people strolling on the sidewalks */
 
 const $ = id => document.getElementById(id);
@@ -104,9 +105,41 @@ function buildTerrain(step) {
   terrain = new THREE.Mesh(g, matV); terrain.receiveShadow = true; world.add(terrain);
 }
 
+/* ---------- water look: every water surface (lake, river, canals) gets the same moving ripples ----------
+   The shader below bends the surface normal with four crossing wave trains (so the sun glint breaks up into moving glitter),
+   adds faint light streaks on the wave crests and a slow light/dark drift. The lake also has real height waves (see the frame loop).
+   Tune: RIPPLE (how strong the glitter is), CREST (how much white on the wave tops), SCALE (bigger = smaller, busier ripples). */
+const waterU = { uT: { value: 0 } };
+const RIPPLE = .2, CREST = .2, SCALE = 1.25;
+function waveFx(mat) {
+  mat.onBeforeCompile = sh => {
+    sh.uniforms.uT = waterU.uT;
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vWP;')
+      .replace('#include <project_vertex>', '#include <project_vertex>\nvWP = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
+varying vec3 vWP; uniform float uT;
+vec2 nvWaveGrad(vec2 p, float t, out float crest) {
+  float a1 = dot(p, vec2(.80, .60)) * ${SCALE.toFixed(2)} * 1.00 + t * 1.7;
+  float a2 = dot(p, vec2(-.50, .85)) * ${SCALE.toFixed(2)} * 1.45 + t * 2.1;
+  float a3 = dot(p, vec2(.95, -.30)) * ${SCALE.toFixed(2)} * 2.30 + t * 2.8;
+  float a4 = dot(p, vec2(-.80, -.60)) * ${SCALE.toFixed(2)} * 3.10 + t * 3.4;
+  crest = (sin(a1) * .5 + .5) * (sin(a2) * .5 + .5) + (sin(a3) * .5 + .5) * (sin(a4) * .5 + .5) * .6;
+  return vec2(.80, .60) * cos(a1) * .50 + vec2(-.50, .85) * cos(a2) * .38 + vec2(.95, -.30) * cos(a3) * .26 + vec2(-.80, -.60) * cos(a4) * .18;
+}`)
+      .replace('#include <color_fragment>', `#include <color_fragment>
+float nvCrest; vec2 nvG = nvWaveGrad(vWP.xz, uT, nvCrest);
+diffuseColor.rgb = mix(diffuseColor.rgb, vec3(.86, .96, 1.), smoothstep(.95, 1.35, nvCrest) * ${CREST.toFixed(2)});
+diffuseColor.rgb *= .94 + .1 * sin(vWP.x * .045 + vWP.z * .03 + uT * .25);`)
+      .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+normal = normalize(normal + (viewMatrix * vec4(nvG.x, 0., nvG.y, 0.)).xyz * ${RIPPLE.toFixed(2)});`);
+  };
+  mat.customProgramCacheKey = () => 'nvwater';
+  return mat;
+}
+
 /* ---------- water: plain blue, almost opaque (so the lake bed does not show through in patches), with a soft sun glint ---------- */
 const waterGeo = new THREE.PlaneGeometry(420, 250, 126, 76); waterGeo.rotateX(-Math.PI / 2);
-const waterMat = new THREE.MeshPhongMaterial({ color: '#46a6c6', specular: '#fff4d6', shininess: 90, transparent: true, opacity: .93, depthWrite: false });
+const waterMat = new THREE.MeshPhongMaterial({ color: '#46a6c6', specular: '#fff4d6', shininess: 90, transparent: true, opacity: .93, depthWrite: false }); waveFx(waterMat);
 const water = new THREE.Mesh(waterGeo, waterMat); water.position.set(0, WL, -85); water.renderOrder = 2; world.add(water);
 const wBase = Float32Array.from(waterGeo.attributes.position.array);
 let reflector = null;
@@ -123,12 +156,12 @@ async function setReflector(on) { /* kept for later, but never switched on: no c
     if (k > 0) { const a = (k - 1) * 2; I.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); }
   }
   const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setIndex(I); g.computeVertexNormals();
-  const m = new THREE.Mesh(g, new THREE.MeshPhongMaterial({ color: '#69bfd8', specular: '#fff', shininess: 90, transparent: true, opacity: .82, depthWrite: false }));
+  const m = new THREE.Mesh(g, waveFx(new THREE.MeshPhongMaterial({ color: '#69bfd8', specular: '#fff', shininess: 90, transparent: true, opacity: .82, depthWrite: false })));
   m.renderOrder = 2; world.add(m);
 })();
 
 /* canal water: opaque ribbons at the lake level, one per canal */
-const canalMat = new THREE.MeshPhongMaterial({ color: '#4fb9cd', specular: '#ffffff', shininess: 90, side: THREE.DoubleSide });
+const canalMat = waveFx(new THREE.MeshPhongMaterial({ color: '#4fb9cd', specular: '#ffffff', shininess: 90, side: THREE.DoubleSide }));
 canals.forEach((c, ci) => {
   const P = [], I = [], n = c.pts.length, hw = c.w + 2.6, y = WL + .004 * ci;
   for (let i = 0; i < n; i++) {
@@ -156,6 +189,7 @@ L.pent.forEach(p => ent({ kind: 'ph', id: 'ph' + p.i, x: p.x, z: p.z, y: p.y, r:
 L.shops.forEach(s => ent({ kind: 'shop', id: 'sh' + s.i, x: s.x, z: s.z, y: s.y, r: 6, top: 13, vis: 120, ref: s }));
 L.cot.forEach(c => ent({ kind: 'cot', id: 'ct' + c.i, x: c.x, z: c.z, y: c.y, r: 5, top: 10, vis: 110, ref: c }));
 L.houses.forEach(h => ent({ kind: 'house', id: 'h' + h.idx, x: h.x, z: h.z, y: h.y, r: 7, top: 17, vis: 95, ref: h }));
+L.lm.forEach(q => ent({ kind: 'lm', id: 'lm-' + q.id, x: q.x, z: q.z, y: q.y, r: q.r * .8, top: q.id === 'stadium' ? 20 : 14, label: q.name, cls: 's', vis: 420, ref: q }));
 const yp = L.yachtPier;
 ent({ kind: 'yacht', id: 'yacht', x: yp.x, z: yp.z0 - 28, y: WL, r: 30, top: 16, label: 'Yacht club', cls: 's', vis: 280, ref: yp });
 const entById = {}; ents.forEach(e => entById[e.id] = e);
@@ -192,6 +226,7 @@ function buildStatic() {
   for (let x = -52; x <= 40; x += 34.5) { const z = sz(x) + 4.2; lamp(b, x, Math.max(1.2, baseH(x, z)), z); }
   lampSpots().forEach(p => lamp(b, p[0], p[1], p[2]));
   paths(b, L);
+  landmarks(b, L, H); /* stadium, billiards salon, Main Street, park fountains, ponds and gazebos (landmarks.js) */
   addMesh(stat, b);
 }
 function buildDyn() {
@@ -246,6 +281,7 @@ function streetSpots() {
   L.pent.forEach(p => blk.push([p.x, p.z, 8.6]));
   L.castles.forEach(c => blk.push([c.x, c.z, c.r + 3]));
   blk.push([L.church.x, L.church.z, 14], [L.plaza.x, L.plaza.z, 11]);
+  L.lm.forEach(q => blk.push([q.x, q.z, q.r]));
   L.bridges.filter(br => br.big).forEach(br => blk.push([br.x, br.z, 14]));
   const free = (x, z) => {
     if (H(x, z) < .9 || canalDist(x, z) < 2.4) return false;
@@ -270,6 +306,7 @@ function lampSpots() {
   L.pent.forEach(p => blk.push([p.x, p.z, 8.6]));
   L.castles.forEach(c => blk.push([c.x, c.z, c.r + 3]));
   blk.push([L.church.x, L.church.z, 14], [L.plaza.x, L.plaza.z, 11]);
+  L.lm.forEach(q => blk.push([q.x, q.z, q.r]));
   L.bridges.filter(br => br.big).forEach(br => blk.push([br.x, br.z, 14]));
   L.houses.forEach(h => boxes.push([h.x, h.z, 5.6, 5.2]));
   L.shops.forEach(s => boxes.push([s.x, s.z, 5.6, 5.2]));
@@ -297,6 +334,7 @@ function plantTrees(n) {
   L.houses.forEach(h => ex.push([h.x, h.z, h.built ? 13 : 8])); L.pent.forEach(p => ex.push([p.x, p.z, 12.5])); L.shops.forEach(s => ex.push([s.x, s.z, 7]));
   L.cot.forEach(c => ex.push([c.x, c.z, 10]));
   L.castles.forEach(c => ex.push([c.x, c.z, c.r + 5])); ex.push([L.church.x, L.church.z, 15], [L.plaza.x, L.plaza.z, 12]);
+  L.lm.forEach(q => ex.push([q.x, q.z, q.r + 2])); (L.squares || []).forEach(q => ex.push([q.x, q.z, q.r + 3])); (L.gazebos || []).forEach(q => ex.push([q.x, q.z, q.r + 3])); (L.ponds || []).forEach(p => ex.push([p.x, p.z, Math.max(p.rx, p.rz) + 8]));
   const con = [], brd = []; let tries = 0;
   while (con.length + brd.length < n && tries < n * 14) {
     tries++;
@@ -416,7 +454,7 @@ function updateCam(dt) {
   for (const p of ['tx', 'ty', 'tz', 'yaw', 'pitch', 'dist', 'zoom']) cam[p] += (goal[p] - cam[p]) * k;
   const cp = Math.cos(cam.pitch);
   let x = cam.tx + Math.sin(cam.yaw) * cp * cam.dist, z = cam.tz + Math.cos(cam.yaw) * cp * cam.dist, y = cam.ty + Math.sin(cam.pitch) * cam.dist;
-  y = Math.min(Math.max(y, H(x, z) + view.minY, view.floor), 330); /* never up into the clouds (they start near 470) */
+  y = Math.min(Math.max(y, H(x, z) + view.minY, view.floor), 1500); /* never up into the clouds (they start near 470) */
   const fv = BASE_FOV * cam.zoom; if (Math.abs(camera.fov - fv) > .01) { camera.fov = fv; camera.updateProjectionMatrix(); }
   camera.position.set(x, y, z); camera.lookAt(cam.tx, cam.ty, cam.tz);
   sky.position.copy(camera.position);
@@ -447,7 +485,7 @@ cv.addEventListener('pointermove', e => {
     if (view.mode === 'walk') { if (lastPinch > 0) stepWalk((d - lastPinch) * .2); }
     else if (view.mode === 'ph') { if (lastPinch > 0) goal.zoom = clamp(goal.zoom * lastPinch / d, .45, 1.15); }
     else {
-      if (lastPinch > 0) goal.dist = clamp(goal.dist * lastPinch / d, 24, 400);
+      if (lastPinch > 0) goal.dist = clamp(goal.dist * lastPinch / d, 24, 1100);
       if (lastMid) pan(mid.x - lastMid.x, mid.y - lastMid.y);
     }
     lastPinch = d; lastMid = mid;
@@ -464,7 +502,7 @@ cv.addEventListener('wheel', e => {
   e.preventDefault(); stopTour();
   if (view.mode === 'walk') stepWalk(-e.deltaY * .04);
   else if (view.mode === 'ph') goal.zoom = clamp(goal.zoom * Math.exp(e.deltaY * .001), .45, 1.15);
-  else goal.dist = clamp(goal.dist * Math.exp(e.deltaY * .0012), 24, 400);
+  else goal.dist = clamp(goal.dist * Math.exp(e.deltaY * .0012), 24, 1100);
 }, { passive: false });
 const keys = {};
 addEventListener('keydown', e => { if (e.target.tagName === 'INPUT') return; keys[e.key.toLowerCase()] = 1; stopTour(); });
@@ -478,7 +516,7 @@ function keyMove(dt) {
   const s = 380 * dt; let dx = 0, dy = 0;
   if (keys.arrowleft || keys.a) dx += s; if (keys.arrowright || keys.d) dx -= s; if (keys.arrowup || keys.w) dy += s; if (keys.arrowdown || keys.s) dy -= s;
   if (dx || dy) pan(dx, dy); if (keys.q) goal.yaw += dt * 1.2; if (keys.e) goal.yaw -= dt * 1.2;
-  if (keys['+'] || keys['=']) goal.dist = clamp(goal.dist * (1 - dt), 24, 400); if (keys['-']) goal.dist = clamp(goal.dist * (1 + dt), 24, 400);
+  if (keys['+'] || keys['=']) goal.dist = clamp(goal.dist * (1 - dt), 24, 1100); if (keys['-']) goal.dist = clamp(goal.dist * (1 + dt), 24, 1100);
 }
 
 /* ---------- picking + selection ---------- */
@@ -527,6 +565,7 @@ function cardHTML(e) {
       '<div style="display:flex;gap:8px;align-items:center"><b style="font:600 18px var(--fd)">' + fmt(COT_PRICES[i]) + '</b><span style="flex:1"></span>' + (o ? '' : '<button class="pb gold" data-a="buy" data-k="cot" data-i="' + i + '">Buy</button>') + '</div>';
   }
   if (e.kind === 'yacht') return x + '<h3>Yacht club</h3><p>Two yachts are moored in the east bay of the lake.</p>';
+  if (e.kind === 'lm') return x + '<h3>' + e.label + '</h3><p>' + e.ref.blurb + ' Landmark of Nestville.</p>';
   const blurb = { lake: 'A white-walled castle on the peninsula, with a tall dark spire.', east: 'Four towers and a tall bell tower on the eastern hill.', island: 'A small keep on its own island in the lake.', tower: 'An old stone watchtower guarding the eastern shore.' };
   if (e.kind === 'castle') return x + '<h3>' + e.label + '</h3><p>' + blurb[e.ref.id] + ' Landmark of Nestville.</p>';
   return x + '<h3>Village church</h3><p>The spire you can see from across the lake.</p>';
@@ -580,6 +619,8 @@ function claim(v) {
   S.me = u; save(S); buildDyn(); closeSheet(); toast('Welcome home, @' + u); setTimeout(() => select(entById['h' + i]), 300);
 }
 function findResident(v) {
+  const key = String(v || '').trim().toLowerCase(), lmHit = key && L.lm.find(q => q.keys.includes(key));
+  if (lmHit) { select(entById['lm-' + lmHit.id]); return; } /* typing stadium, pool, cafe ... flies to that landmark */
   const u = cleanName(v); if (!u) return;
   const i = S.houses.findIndex(h => h.u === u);
   if (i >= 0) { select(entById['h' + i]); } else toast('No resident @' + u + ' yet. Claim your house in the menu.');
@@ -641,7 +682,8 @@ const TOUR = () => [
   { x: L.yachtPier.x, z: L.yachtPier.z0 - 26, yaw: Math.PI - .9, pitch: .28, dist: 90 },
   { x: L.castles[1].x, z: L.castles[1].z, yaw: Math.PI + 1.1, pitch: .35, dist: 120 },
   { x: L.castles[2].x, z: L.castles[2].z, yaw: Math.PI - .4, pitch: .26, dist: 85 },
-  { x: -10, z: sz(0) + 6, yaw: Math.PI - .9, pitch: .22, dist: 70 }
+  { x: -10, z: sz(0) + 6, yaw: Math.PI - .9, pitch: .22, dist: 70 },
+  ...L.lm.map(q => ({ x: q.x, z: q.z, yaw: Math.PI + .5, pitch: .38, dist: q.id === 'stadium' ? 120 : 70 }))
 ];
 $('bTour').addEventListener('click', () => {
   if (tourOn) { stopTour(); return; }
@@ -684,10 +726,11 @@ function frameLoop(now) {
   const dt = Math.min(.05, (now - last) / 1000); last = now; T += dt; frame++;
   keyMove(dt); updateTour(dt); updateCam(dt);
   const q = QUAL[gfx];
+  waterU.uT.value = T; /* ripples on the lake, river and canals */
   /* water motion */
   if (q.fx) {
     const a = waterGeo.attributes.position.array;
-    for (let i = 0; i < a.length; i += 3) { const x = wBase[i], z = wBase[i + 2]; a[i + 1] = .08 * (Math.sin(x * .23 + T * 1.2) + Math.sin(z * .19 + T * .9) + Math.sin((x + z) * .12 + T * .6)); }
+    for (let i = 0; i < a.length; i += 3) { const x = wBase[i], z = wBase[i + 2]; a[i + 1] = .085 * Math.sin(x * .23 + T * 1.2) + .07 * Math.sin(z * .19 + T * .9) + .06 * Math.sin((x + z) * .12 + T * .6) + .055 * Math.sin((x * .7 - z * .5) * .31 + T * 1.7) + .04 * Math.sin((x * -.4 + z * .9) * .43 + T * 2.2) + .03 * Math.sin((x + z * .6) * .71 + T * 2.9); }
     waterGeo.attributes.position.needsUpdate = true; if (frame % 2 === 0) waterGeo.computeVertexNormals();
     clouds.forEach(c => { c.position.x += dt * 2.2; if (c.position.x > 420) c.position.x = -420; });
     updateSmoke(T);

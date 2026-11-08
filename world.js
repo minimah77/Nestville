@@ -188,9 +188,21 @@ export function layout() {
     L.pent.push({ i, x, z, y: h, yaw: Math.PI + ((i % 3) - 1) * .06, name: 'Penthouse ' + (i + 1), k: 'ph', w: 11, d: 9, hgt: 61 });
   });
 
+  /* ---------- landmarks (landmarks.js draws them): reserved BEFORE shops and houses, so everything else keeps clear ----------
+     x, z = centre | r = clear radius | yaw PI = fronts look north to the lake. keys = words the Find box understands.
+     To move one, change its x / z (keep it on flat land). */
+  L.lm = [];
+  const LMDEF = [
+    { id: 'stadium', x: 340, z: -140, r: 46, yaw: Math.PI, name: 'Nestville Stadium', keys: ['stadium', 'football', 'soccer', 'pitch'], blurb: 'A floodlit football pitch with stands on both sides, goals with nets and a fence all round.' },
+    { id: 'billiards', x: 136, z: 136, r: 19, yaw: Math.PI, name: 'Billiards salon', keys: ['billiards', 'billiard', 'pool', 'salon', 'snooker'], blurb: 'A pool table under a hanging lamp, a cue rack, leather armchairs and a red carpet. Open to everyone.' },
+    { id: 'mainstreet', x: -144, z: 136, r: 26, yaw: Math.PI, name: 'Main Street', keys: ['main street', 'mainstreet', 'cafe', 'shops', 'street'], blurb: 'Three brick shops with awnings, a cafe with yellow umbrellas and a fountain in front.' }
+  ];
+  for (const d of LMDEF) { const y = baseH(d.x, d.z); addPad(d.x, d.z, d.r, y, 8); L.lm.push({ ...d, y }); }
+  const nearLM = (x, z, m) => L.lm.some(q => Math.hypot(x - q.x, z - q.z) < q.r + m);
+
   /* shops: spread through the town between the houses, never next to each other */
   const shopOK = (x, z) => Math.abs(x - xr(z)) > 16 && Math.hypot(x - cx, z - cz) > 28 && Math.hypot(x - L.plaza.x, z - L.plaza.z) > 20 &&
-    Math.hypot(x - lc.x, z - lc.z) > 30 && baseH(x, z) > 1.2 && canalDist(x, z) > 5 && !nearSquare(x, z, 9) && !crossBlock(x, z, 9) &&
+    Math.hypot(x - lc.x, z - lc.z) > 30 && baseH(x, z) > 1.2 && canalDist(x, z) > 5 && !nearSquare(x, z, 9) && !nearLM(x, z, 10) && !crossBlock(x, z, 9) &&
     !L.pent.some(p => Math.hypot(x - p.x, z - p.z) < 17) && !L.castles.some(c => Math.hypot(x - c.x, z - c.z) < c.r + 10);
   const tryShop = (r, x, gap) => {
     if (L.shops.length >= 6) return;
@@ -219,6 +231,7 @@ export function layout() {
     if (Math.hypot(c.x - cx, c.z - cz) < 19) return false;
     if (Math.hypot(c.x - L.plaza.x, c.z - L.plaza.z) < 14) return false;
     if (nearSquare(c.x, c.z, 8)) return false;
+    if (nearLM(c.x, c.z, 9)) return false;
     if (Math.hypot(c.x - lc.x, c.z - lc.z) < 26) return false;
     if (baseH(c.x, c.z) < 1.2) return false;
     if (canalDist(c.x, c.z) < 5) return false;
@@ -270,27 +283,29 @@ export function layout() {
   /* AUTO-FILL: more blocks laid over every free stretch of land, nearest to the middle first, until the village and meadow houses reach HOUSE_CAP
      (the 100 old-town houses come after, so the whole town ends up at about 700). A house is skipped if it would land on water, a steep slope, another house,
      the village, the old towns, the cottages or the river. Lower HOUSE_CAP for fewer houses. */
-  const HOUSE_CAP = 600, AUTO = [];
-  for (let cx = -345; cx <= 345; cx += 90) for (let cz = -385; cz <= 235; cz += 58) AUTO.push({ cx, cz, cols: 5, rows: 2, yaw: Math.round(Math.atan2(LAKE0.x - cx, LAKE0.z - cz) / (Math.PI / 2)) * (Math.PI / 2), auto: 1 });
+  const HOUSE_CAP = 605, AUTO = [];
+  for (let cx = -345; cx <= 345; cx += 90) for (let cz = -385; cz <= 235; cz += 52) AUTO.push({ cx, cz, cols: 6, rows: 2, vs: 15, vr: 26, yaw: Math.round(Math.atan2(LAKE0.x - cx, LAKE0.z - cz) / (Math.PI / 2)) * (Math.PI / 2), auto: 1 });
   AUTO.sort((p, q) => Math.hypot(p.cx * .7, p.cz + 60) - Math.hypot(q.cx * .7, q.cz + 60));
   BLOCKS.push(...AUTO);
-  const villas = [], nearC = (x, z, m) => L.castles.some(c => Math.hypot(x - c.x, z - c.z) < c.r + m);
+  const villas = [], nearC = (x, z, m) => L.castles.some(c => Math.hypot(x - c.x, z - c.z) < c.r + m) || L.lm.some(q => Math.hypot(x - q.x, z - q.z) < q.r + m - 2);
   for (const bk of BLOCKS) {
+    const vs = bk.vs || VS, vr = bk.vr || VR;
     const ang = bk.yaw !== undefined ? bk.yaw : Math.round(Math.atan2(LAKE0.x - bk.cx, LAKE0.z - bk.cz) / (Math.PI / 4)) * (Math.PI / 4);
     const lx = Math.sin(ang), lz = Math.cos(ang); /* unit vector from the block to the lake: the way the fronts look */
     const yaw = ang, tx = Math.cos(ang), tz = -Math.sin(ang); /* tx, tz: along a row */
     for (let j = 0; j < bk.rows; j++) {
       const rowPts = [];
       for (let i = 0; i < bk.cols; i++) {
-        const along = (i - (bk.cols - 1) / 2) * VS, back = (j - (bk.rows - 1) / 2) * VR;
+        const along = (i - (bk.cols - 1) / 2) * vs, back = (j - (bk.rows - 1) / 2) * vr;
         const x = bk.cx + tx * along - lx * back, z = bk.cz + tz * along - lz * back;
         const gx = x - lx * 7, gz = z - lz * 7; /* centre of the back garden */
         const h = baseH(x, z);
         if (h < 1.4 || baseH(gx, gz) < 1.2) continue;
         if (Math.hypot(baseH(x + 6, z) - baseH(x - 6, z), baseH(x, z + 6) - baseH(x, z - 6)) / 12 > .24) continue; /* not on a steep slope */
         if (L.castles.some(c => Math.hypot(x - c.x, z - c.z) < c.r + 26)) continue;
+        if (nearLM(x, z, 12)) continue;
         if (L.houses.length >= HOUSE_CAP) continue;
-        if (L.houses.some(v => Math.hypot(x - v.x, z - v.z) < 14) || L.shops.some(v => Math.hypot(x - v.x, z - v.z) < 14) || L.pent.some(v => Math.hypot(x - v.x, z - v.z) < 18)) continue;
+        if (L.houses.some(v => Math.hypot(x - v.x, z - v.z) < 12.5) || L.shops.some(v => Math.hypot(x - v.x, z - v.z) < 14) || L.pent.some(v => Math.hypot(x - v.x, z - v.z) < 18)) continue;
         if (Math.abs(x) < 125 && z > -325 && z < -165) continue; /* the cottage district */
         if (bk.auto && ((Math.abs(x) < 292 && z > -80 && z < 205) || (z > 120 && Math.abs(x - xr(z)) < 16))) continue; /* the village, the old towns and the river */
         addPad(x, z, 5.6, h, 4.5); addPad(gx, gz, 6.6, h, 5); addPad(x + lx * 7.5, z + lz * 7.5, 3.4, h, 4); /* house, back garden, front gate */
@@ -301,7 +316,7 @@ export function layout() {
       /* sidewalk in front of the row, running one house further than the first and last house */
       const first = rowPts[0], last = rowPts[rowPts.length - 1];
       const sx = (p, k) => [p.x + lx * FRONT + tx * k, p.z + lz * FRONT + tz * k];
-      const a0 = sx(first, -VS * .75), a1 = sx(last, VS * .75), n = Math.max(2, Math.ceil(Math.hypot(a1[0] - a0[0], a1[1] - a0[1]) / 4));
+      const a0 = sx(first, -vs * .75), a1 = sx(last, vs * .75), n = Math.max(2, Math.ceil(Math.hypot(a1[0] - a0[0], a1[1] - a0[1]) / 4));
       let cur = []; const flush = () => { if (cur.length > 2) L.walks.push({ pts: cur, w: 2.4, kind: 'hill' }); cur = []; };
       for (let k = 0; k <= n; k++) {
         const x = a0[0] + (a1[0] - a0[0]) * k / n, z = a0[1] + (a1[1] - a0[1]) * k / n;
@@ -311,8 +326,8 @@ export function layout() {
     }
     /* the cross sidewalk joining the rows of a two-row block, halfway along the row, running in the gap between two houses */
     if (bk.rows > 1 && bk.cols > 1 && (!bk.auto || (bk.placed || 0) >= 6)) {
-      const m = Math.floor(bk.cols / 2) - .5, along = (m - (bk.cols - 1) / 2) * VS;
-      const ends = [0, bk.rows - 1].map(j => { const back = (j - (bk.rows - 1) / 2) * VR; return [bk.cx + tx * along - lx * back + lx * FRONT, bk.cz + tz * along - lz * back + lz * FRONT]; });
+      const m = Math.floor(bk.cols / 2) - .5, along = (m - (bk.cols - 1) / 2) * vs;
+      const ends = [0, bk.rows - 1].map(j => { const back = (j - (bk.rows - 1) / 2) * vr; return [bk.cx + tx * along - lx * back + lx * FRONT, bk.cz + tz * along - lz * back + lz * FRONT]; });
       const pts = [], n = Math.max(2, Math.ceil(Math.hypot(ends[1][0] - ends[0][0], ends[1][1] - ends[0][1]) / 4));
       for (let k = 0; k <= n; k++) { const x = ends[0][0] + (ends[1][0] - ends[0][0]) * k / n, z = ends[0][1] + (ends[1][1] - ends[0][1]) * k / n; if (H(x, z) > 1.4 && !nearC(x, z, 4)) pts.push([x, z]); }
       if (pts.length > 2) L.walks.push({ pts, w: 1.8, kind: 'hill' });
@@ -359,6 +374,7 @@ export function layout() {
       if (h < 1.6 || baseH(x - Math.sin(yaw) * 6, z - Math.cos(yaw) * 6) < 1.4) continue;
       if (Math.hypot(baseH(x + 6, z) - baseH(x - 6, z), baseH(x, z + 6) - baseH(x, z - 6)) / 12 > .2) continue;
       if (L.castles.some(c => Math.hypot(x - c.x, z - c.z) < c.r + 14)) continue;
+      if (nearLM(x, z, 10)) continue;
       if (L.houses.some(v => Math.hypot(x - v.x, z - v.z) < 13) || L.shops.some(v => Math.hypot(x - v.x, z - v.z) < 13) || L.pent.some(v => Math.hypot(x - v.x, z - v.z) < 16)) continue;
       oldCand.push({ x, z, yaw, h, d });
     }
@@ -483,6 +499,90 @@ export function layout() {
     }
   }
   L.inter = []; for (const X of XSTREETS) for (let r = 0; r <= NROWS; r++) { const z = roadZ(r, X); if (onStreet(X, z)) L.inter.push({ x: X, z }); }
+
+  /* ---------- LINK WALKS: join every loose sidewalk to the rest of the town ----------
+     The hill blocks, the cobbled quarters and the meadow blocks each got their own sidewalk, so they floated on their own around the village.
+     Here every group of sidewalks that does not touch the main network gets one connecting walk to the nearest part of it (like a minimum spanning tree).
+     The walk goes straight if the way is clear, otherwise with one right-angle bend. It never crosses water, a castle, a house, a street, or a steep slope.
+     Groups that cannot be reached within LINK_MAX stay on their own (a block cut off by the lake, for example).
+     The village rows, the bridges and the cottage rows (paths.js) count as part of the network.
+     Tune: LINK_MAX (longest link), LINK_W (link width), TOUCH (two walks closer than this count as already joined). */
+  { const LINK_MAX = 150, LINK_W = 2.2, TOUCH = 6.5;
+    const polys = L.walks.map(w => ({ pts: w.pts, own: true }));
+    /* parts of the network that are not in L.walks: the bridges and the cottage rows, the promenade and the N-S cottage walks */
+    L.bridges.forEach(b => polys.push({ pts: [[b.x - 10, b.zw], [b.x, (b.zw + b.ze) / 2], [b.x + 10, b.ze]] }));
+    if (L.walk) {
+      L.walk.z.forEach(z => polys.push({ pts: [[L.walk.x0, z], [L.walk.x1, z]] }));
+      polys.push({ pts: [[L.walk.x0, L.walk.prom], [L.walk.x1, L.walk.prom]] });
+      L.walk.conn.forEach(x => polys.push({ pts: [[x, L.walk.prom], [x, L.walk.z[5]]] }));
+    }
+    const dense = (pts, step) => { const out = [pts[0]]; for (let i = 1; i < pts.length; i++) { const a = pts[i - 1], b = pts[i], n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / step)); for (let k = 1; k <= n; k++) out.push([a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n]); } return out; };
+    polys.forEach(p => { p.s = dense(p.pts, 8); p.bb = [Math.min(...p.s.map(q => q[0])) - TOUCH, Math.max(...p.s.map(q => q[0])) + TOUCH, Math.min(...p.s.map(q => q[1])) - TOUCH, Math.max(...p.s.map(q => q[1])) + TOUCH]; });
+    /* connected groups */
+    const par = polys.map((_, i) => i), find = i => par[i] === i ? i : (par[i] = find(par[i]));
+    for (let i = 0; i < polys.length; i++) for (let j = i + 1; j < polys.length; j++) {
+      if (find(i) === find(j)) continue;
+      const A = polys[i].bb, Bb = polys[j].bb; if (A[1] < Bb[0] || Bb[1] < A[0] || A[3] < Bb[2] || Bb[3] < A[2]) continue;
+      let hit = false;
+      for (const a of polys[i].s) { for (const b of polys[j].s) if (Math.hypot(a[0] - b[0], a[1] - b[1]) < TOUCH) { hit = true; break; } if (hit) break; }
+      if (hit) par[find(i)] = find(j);
+    }
+    const groups = new Map(); polys.forEach((p, i) => { const g = find(i); if (!groups.has(g)) groups.set(g, []); groups.get(g).push(...p.s); });
+    let G = [...groups.values()].sort((a, b) => b.length - a.length);
+    const main = G.shift(); let rest = G;
+    const homes = [...L.houses, ...L.shops]; let allowSt = false; /* second pass: short links may cross a street (with a zebra crossing) */
+    const clear = (x, z) => {
+      if (H(x, z) < 1.4 || nearC(x, z, 4) || inChurch(x, z) || canalDist(x, z) < 3.2 || (!allowSt && onStreet(x, z))) return false;
+      for (const h of homes) if (Math.abs(h.x - x) < 7 && Math.abs(h.z - z) < 7 && Math.hypot(h.x - x, h.z - z) < 7) return false;
+      for (const c of L.cot) if (Math.hypot(c.x - x, c.z - z) < (c.big ? 12 : 8)) return false;
+      for (const p of L.pent) if (Math.hypot(p.x - x, p.z - z) < 14) return false;
+      return true;
+    };
+    const run = (pts) => { /* sample a polyline every 3 units: is the whole way clear and gentle? */
+      const out = [];
+      for (let i = 1; i < pts.length; i++) {
+        const a = pts[i - 1], b = pts[i], d = Math.hypot(b[0] - a[0], b[1] - a[1]), n = Math.max(1, Math.ceil(d / 3));
+        for (let k = i === 1 ? 0 : 1; k <= n; k++) {
+          const x = a[0] + (b[0] - a[0]) * k / n, z = a[1] + (b[1] - a[1]) * k / n;
+          if (!clear(x, z)) { if (k < 1 || k > n - 1 || d < 8) { if (!(i === 1 && k === 0) && !(i === pts.length - 1 && k === n)) return null; } else return null; }
+          if (out.length && Math.abs(H(x, z) - H(out[out.length - 1][0], out[out.length - 1][1])) / Math.hypot(x - out[out.length - 1][0], z - out[out.length - 1][1]) > .3) return null;
+          out.push([x, z]);
+        }
+      }
+      return out;
+    };
+    const route = (a, b) => {
+      for (const via of [null, [a[0], b[1]], [b[0], a[1]]]) { const r = run(via ? [a, via, b] : [a, b]); if (r && r.length > 2) return r; }
+      return null;
+    };
+    let guard = 0;
+    while (rest.length && guard++ < 400) {
+      /* for every loose group, its closest points to the network; try the closest few until one has a clear way */
+      let best = null;
+      rest.forEach((g, gi) => {
+        const cand = [];
+        for (const a of g) { let bd = 1e9, bp = null; for (const b of main) { const d = (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2; if (d < bd) { bd = d; bp = b; } } if (bd < (allowSt ? 45 : LINK_MAX) ** 2) cand.push({ d: bd, a, b: bp }); }
+        cand.sort((p, q) => p.d - q.d);
+        for (const c of cand.slice(0, 8)) { if (best && c.d >= best.d) break; const r = route(c.a, c.b); if (r) { best = { d: c.d, gi, r }; break; } }
+      });
+      if (!best && !allowSt) { allowSt = true; continue; } /* nothing left without crossing a street: now allow it, for short links only */
+      if (!best) break;
+      if (allowSt) { /* one zebra crossing where the link goes over a street */
+        let on = false;
+        for (const [x, z] of best.r) {
+          const o = onStreet(x, z);
+          if (o && !on) { let bd = 99, bp = null;
+            for (const st of L.streets) for (let i = 0; i < st.pts.length - 1; i++) { const a = st.pts[i], b = st.pts[i + 1], vx = b[0] - a[0], vz = b[1] - a[1], t = Math.max(0, Math.min(1, ((x - a[0]) * vx + (z - a[1]) * vz) / (vx * vx + vz * vz + 1e-6))), d = Math.hypot(x - a[0] - vx * t, z - a[1] - vz * t); if (d < bd) { bd = d; const l = Math.hypot(vx, vz) || 1; bp = { x: a[0] + vx * t, z: a[1] + vz * t, dx: vx / l, dz: vz / l }; } }
+            if (bp) L.xwalks.push({ x: bp.x, z: bp.z, dx: bp.dx, dz: bp.dz, w: ROAD_W });
+          }
+          on = o;
+        }
+      }
+      L.walks.push({ pts: best.r, w: LINK_W, kind: 'hill', link: true });
+      main.push(...rest[best.gi], ...dense(best.r, 8)); rest.splice(best.gi, 1);
+    }
+    L.linkInfo = { linked: guard - 1, left: rest.length, lonely: rest.map(g => g[0].map(Math.round)) };
+  }
   return L;
 }
 const KIND = ['Bakery', 'Nail salon', 'Hair salon', 'Cafe', 'Flower shop', 'Barber'];
