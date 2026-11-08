@@ -1,8 +1,11 @@
 /* Nestville shared data: residents, economy, avatars */
-export const KINDS = ['Bakery', 'Nail salon', 'Hair salon', 'Cafe', 'Flower shop', 'Barber'];
+export const NSHOPS = 56; /* 6 original shops + 50 more, all for sale */
+const SHOP_TYPES = ['Bakery', 'Nail salon', 'Hair salon', 'Cafe', 'Flower shop', 'Barber'];
+/* shop i is the type i % 6 (so its interior matches its name); later ones are numbered: Bakery, ..., Barber, Bakery 2, ... */
+export const KINDS = Array.from({ length: NSHOPS }, (_, i) => SHOP_TYPES[i % 6] + (i >= 6 ? ' ' + (Math.floor(i / 6) + 1) : ''));
 export const PH_PRICES = Array.from({ length: 10 }, (_, i) => 150000 + i * 10000);
 export const SHOP_PRICE = 50000;
-export const COT_PRICES = Array.from({ length: 60 }, (_, i) => 30000 + ((i * 37) % 41) * 1000); /* 30,000 to 70,000 IRT */
+/* lakeview cottages are FREE: no price, not for sale. Only penthouses and shops are paid. */
 export const IG_DM = ''; /* Paste your Instagram DM link here when buying goes live */
 export const fmt = n => n.toLocaleString('en-US') + ' IRT'; /* real prices (Toman) */
 export const coins = n => Math.round(n).toLocaleString('en-US'); /* in-game Nest coins */
@@ -27,7 +30,7 @@ export const WELCOME = 10000, DAILY = 1000, RENT_CAP = 7;
 export const RENT = { cot: p => p / 100, sh: p => p / 50, ph: p => p / 60 };
 const DAY = 864e5;
 export const today = () => { const d = new Date(); return Math.floor((d.getTime() - d.getTimezoneOffset() * 60000) / DAY); };
-export const priceOf = p => p.k === 'ph' ? PH_PRICES[p.i] : p.k === 'sh' ? SHOP_PRICE : COT_PRICES[p.i];
+export const priceOf = p => p.k === 'ph' ? PH_PRICES[p.i] : p.k === 'sh' ? SHOP_PRICE : 0;
 
 export function ensure(r) {
   if (r.coins === undefined) r.coins = WELCOME;
@@ -41,7 +44,7 @@ export function ensure(r) {
 const KEY = 'nv4';
 let CUR = null;
 export function load() {
-  let S = { houses: [], ph: Array(10).fill(null), shops: Array(6).fill(null), cot: Array(60).fill(null) };
+  let S = { houses: [], ph: Array(10).fill(null), shops: Array(NSHOPS).fill(null), cot: Array(60).fill(null) };
   try {
     const x = JSON.parse(localStorage.getItem(KEY) || 'null');
     if (x && x.houses) S = Object.assign(S, x);
@@ -59,7 +62,7 @@ export function load() {
   S.houses = (S.houses || []).filter(r => r && r.u && r.code !== 'DEMO' && CITIZENS.includes(r.u));
   S.houses.forEach(ensure);
   /* ownership comes only from the OWNERS list above */
-  S.ph = Array(10).fill(null); S.shops = Array(6).fill(null); S.cot = Array(60).fill(null);
+  S.ph = Array(10).fill(null); S.shops = Array(NSHOPS).fill(null); S.cot = Array(60).fill(null);
   for (const k of ['ph', 'cot', 'shops']) for (const [i, u] of Object.entries(OWNERS[k] || {})) S[k][+i] = { u };
   if (S.me && !S.houses.some(r => r.u === S.me)) delete S.me;
   CUR = S; save(S);
