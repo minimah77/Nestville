@@ -4,7 +4,8 @@
    and zebra crosswalks. Everything is two meshes (asphalt, markings), so it costs two draw calls.
    Every street now ends in a half round turning bay with a curb all round, so no street stops dead against the grass.
    Runs next to town.js and extras.js and reads the same scene (window.__nv). Add  import './streets.js';  where extras.js is imported.
-   Colours are at the top: tune ASPHALT / CURB / PAINT to taste. */
+   Colours are at the top: tune ASPHALT / CURB / PAINT to taste.
+   Road look pass (photo): bolder curbs (CURB_W), longer and thicker centre dashes (DASH, GAP, DASH_W), bigger zebra stripes. */
 import * as THREE from './lib.js';
 import { H, L, ROAD_W, XW } from './world.js';
 import './polish.js'; /* smaller sun + natural water (polish.js) */
@@ -12,6 +13,7 @@ import './polish.js'; /* smaller sun + natural water (polish.js) */
 function ready(fn) { if (window.__nv) fn(window.__nv); else setTimeout(() => ready(fn), 50); }
 
 const ASPHALT = '#3b3d45', CURB = '#c9c3b4', SKIRT = '#8d887c', PAINT = '#f4f1e8';
+const CURB_W = .45, DASH = 3.2, GAP = 3.0, DASH_W = .16; /* curb width, centre dash length, gap between dashes, half width of a dash */
 export const LIFT = .02; /* the street surface sits this far above the highest ground across its width; the row sidewalks are .16 above the same ground, so the kerb is ~.14 high */
 
 /* tiny indexed-geometry builder with per-vertex colour and explicit normals */
@@ -87,7 +89,7 @@ ready(nv => {
   const nearInter = (x, z, r) => inter.some(p => Math.hypot(x - p.x, z - p.z) < r);
 
   streets.forEach(st => {
-    const hw = ROAD_W / 2 * (st.k === 'ew' ? 1 : (XW * 2) / ROAD_W), S = sample(st.pts, hw), cw = .26; /* cw: curb width */
+    const hw = ROAD_W / 2 * (st.k === 'ew' ? 1 : (XW * 2) / ROAD_W), S = sample(st.pts, hw), cw = CURB_W; /* cw: curb width */
     S.forEach(p => all.push(p));
     for (let i = 0; i < S.length - 1; i++) {
       const a = S[i], c = S[i + 1], tone = (hash(st.row === undefined ? st.x : st.row, i) - .5) * .02;
@@ -105,12 +107,12 @@ ready(nv => {
         mark.quad(f(a.L, a.R, 1 - k, a.y + y0), [a.R[0], a.y + y0, a.R[1]], [c.R[0], c.y + y0, c.R[1]], f(c.L, c.R, 1 - k, c.y + y0), CURB);
       }
     }
-    /* dashed centre line: 2.0 long, 2.4 gap, none inside an intersection or crosswalk zone */
+    /* dashed centre line: DASH long, GAP between, none inside an intersection or crosswalk zone */
     const total = S[S.length - 1].s;
-    for (let s = 1.5; s + 2 < total - 1.5; s += 4.4) {
-      const m = at(S, s + 1);
+    for (let s = 1.5; s + DASH < total - 1.5; s += DASH + GAP) {
+      const m = at(S, s + DASH / 2);
       if (nearInter(m.x, m.z, hw + 3.6)) continue;
-      const p0 = at(S, s), p1 = at(S, s + 2), w = .09, y = .014;
+      const p0 = at(S, s), p1 = at(S, s + DASH), w = DASH_W, y = .014;
       mark.quad([p0.x - p0.tz * w, p0.y + y, p0.z + p0.tx * w], [p0.x + p0.tz * w, p0.y + y, p0.z - p0.tx * w], [p1.x + p1.tz * w, p1.y + y, p1.z - p1.tx * w], [p1.x - p1.tz * w, p1.y + y, p1.z + p1.tx * w], PAINT);
     }
     /* rounded ends: a street no longer stops dead against the grass. It finishes in a half round turning bay with a curb all round.
@@ -134,7 +136,7 @@ ready(nv => {
   (L.xwalks || []).forEach(w => {
     const nx = -w.dz, nz = w.dx, k = Math.max(2, Math.floor(w.w / .9)), y = yAt(w.x, w.z) + .018;
     for (let j = 0; j < k; j++) {
-      const o = (j - (k - 1) / 2) * (w.w - .5) / (k - 1), cx = w.x + nx * o, cz = w.z + nz * o, hl = 1.0, hn = .24;
+      const o = (j - (k - 1) / 2) * (w.w - .5) / (k - 1), cx = w.x + nx * o, cz = w.z + nz * o, hl = 1.4, hn = .3;
       const P = (a, b) => [cx + w.dx * a + nx * b, y, cz + w.dz * a + nz * b];
       mark.quad(P(-hl, -hn), P(-hl, hn), P(hl, hn), P(hl, -hn), PAINT);
     }
