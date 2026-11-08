@@ -119,10 +119,12 @@ function treeTarget(m, season) {
 /* ---------- snow on the roofs ----------
    Roof triangles are found by their colour (the roof browns used in build.js, in all their shades) and an upward-facing normal.
    Snow builds up for 10 minutes (SNOW_BUILD), stays for the rest of the cycle, and every 30 minutes (SNOW_CYCLE) it melts away quickly and starts again. */
-const ROOF_BASE = ['#4a2f1f', '#7a5236', '#a77b52', '#7a3b2c'], ROOF_MUL = [1, .9, .82, .8, .7];
+/* [the colour build.js draws, the colour shown]. build.js keeps its three browns; here the dark brown stays (some dark roofs remain),
+   the mid brown becomes terracotta and the light brown becomes slate grey. The shop roof is unchanged. */
+const ROOF_PAL = [['#4a2f1f', '#4a2f1f'], ['#7a5236', '#b4532e'], ['#a77b52', '#6e7684'], ['#7a3b2c', '#7a3b2c']], ROOF_MUL = [1, .9, .82, .8, .7];
 const rkey = (r, g, b) => Math.round(r * 2000) * 4004001 + Math.round(g * 2000) * 2001 + Math.round(b * 2000);
 const ROOF_KEYS = new Map();
-ROOF_BASE.forEach(h => { const c = col(h); ROOF_MUL.forEach(m => ROOF_KEYS.set(rkey(c.r * m, c.g * m, c.b * m), m)); });
+ROOF_PAL.forEach(([h, to]) => { const c = col(h), t = col(to); ROOF_MUL.forEach(m => ROOF_KEYS.set(rkey(c.r * m, c.g * m, c.b * m), { m, t })); });
 const SNOWC = col('#f3f7fa');
 const SNOW_BUILD = 600, SNOW_CYCLE = 1800, SNOW_MELT = 4;
 function snowAmount(sec) {
@@ -135,12 +137,14 @@ function prepRoof(mesh) {
   if (!c || !nrm || g.index) return;
   const ca = c.array, na = nrm.array, idx = [], sh = [], w = [];
   for (let i = 0; i < c.count; i++) {
-    const k = i * 3, m = ROOF_KEYS.get(rkey(ca[k], ca[k + 1], ca[k + 2]));
-    if (m === undefined) continue;
+    const k = i * 3, e = ROOF_KEYS.get(rkey(ca[k], ca[k + 1], ca[k + 2]));
+    if (e === undefined) continue;
     const ny = na[k + 1]; if (ny < .3) continue;
-    idx.push(i); sh.push(m); w.push(clamp((ny - .3) / .2, 0, 1));
+    ca[k] = e.t.r * e.m; ca[k + 1] = e.t.g * e.m; ca[k + 2] = e.t.b * e.m; /* the new roof colour, with the same shade as before */
+    idx.push(i); sh.push(e.m); w.push(clamp((ny - .3) / .2, 0, 1));
   }
   if (!idx.length) return;
+  c.needsUpdate = true;
   const orig = new Float32Array(idx.length * 3);
   for (let j = 0; j < idx.length; j++) { const k = idx[j] * 3; orig[j * 3] = ca[k]; orig[j * 3 + 1] = ca[k + 1]; orig[j * 3 + 2] = ca[k + 2]; }
   mesh.userData.roof = { idx: Uint32Array.from(idx), sh: Float32Array.from(sh), w: Float32Array.from(w), orig, amt: 0 };
