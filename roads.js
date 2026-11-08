@@ -23,7 +23,7 @@ ready(nv => {
       let changed = false;
       for (let i = 0; i < o.count; i++) {
         o.getMatrixAt(i, m4);
-        if (ns.some(s => polyDist(s.pts, e[12], e[14]) < 3.6)) { o.setMatrixAt(i, zero); changed = true; }
+        if (ns.some(s => polyDist(s.pts, e[12], e[14]) < 4.9)) { o.setMatrixAt(i, zero); changed = true; }
       }
       if (changed) o.instanceMatrix.needsUpdate = true;
     }
