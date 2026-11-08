@@ -1,7 +1,9 @@
-/* Nestville landmarks: the stadium, the billiards salon, Main Street, and the park fountains, ponds and gazebos.
+/* Nestville landmarks: the stadium, the billiards salon, Main Street, the mall, and the park fountains, ponds and gazebos.
    town.js calls landmarks(b, L, H) once while it builds the static scene. Everything is drawn into the mesh builder b.
    Where things stand comes from world.js (L.lm, L.squares, L.ponds, L.gazebos); to move one, change it there.
+   The mall is placed by world.js next to a big fountain plaza that joins sidewalks (see HUBS in world.js).
    Local coordinates: x runs along the front, +z is the front (with yaw PI the front looks north to the lake), y is up from the ground. */
+import './spring.js'; /* the river source: the stream and spring pool above the village (spring.js) */
 import { K, fountain } from './build.js';
 
 const PAVE = '#cfc8b5', WHITE = '#f4f6f4', DARK = '#2a3036', GLASS = '#9fd3e0', WOOD = '#5b3f2c';
@@ -123,6 +125,41 @@ function mainStreet(b, d) {
   for (const x of [-21, -11.5, -0.5, 10.5]) { b.cyl(x, 0, 0, .55, .6, 8, '#a8603f', '#4a3a28'); b.cyl(x, .6, 0, .45, .35, 8, '#d9577f'); }
 }
 
+/* the mall: a two-storey block with a wall of big glass shop windows, white mullions, a striped awning along the whole front,
+   a tall glass entrance hall with a blue sign band, a roof parapet and a paved terrace that runs out to the fountain plaza.
+   34 wide, 14 deep (world.js reserves exactly this footprint). */
+function mall(b, d) {
+  b.at(d.x, d.y, d.z, d.yaw);
+  const w = 34, dp = 14, h = 8.4, zf = dp / 2;
+  b.box(0, 0, zf + 4, w + 8, .14, 12, PAVE);                              /* front terrace, joins the fountain ring */
+  b.box(0, .14, 0, w, h, dp, '#ece6d8');                                  /* main block */
+  b.box(0, h + .14, 0, w + .8, .5, dp + .8, '#cfc8b5');                   /* roof edge */
+  b.box(0, .14, zf + .5, w + .4, .5, 1, '#b9b2a0');                       /* plinth */
+  const n = 8, pw = (w - 4) / n;
+  for (let i = 0; i < n; i++) {
+    const x = -w / 2 + 2 + pw * (i + .5);
+    if (Math.abs(x) < 5) continue;                                        /* the middle bays are the entrance hall */
+    b.box(x, .8, zf + .05, pw - .6, 3.6, .1, GLASS);                      /* ground floor shop window */
+    b.box(x, 5.0, zf + .05, pw - .9, 2.6, .1, GLASS);                     /* upper floor window */
+    const a = x - pw / 2 + .2, c = x + pw / 2 - .2, col = i % 2 ? '#f4f6f4' : '#d9623f';
+    b.Q([a, 4.6, zf + .1], [a, 3.9, zf + 1.9], [c, 3.9, zf + 1.9], [c, 4.6, zf + .1], col);   /* striped awning */
+    b.Q([a, 3.9, zf + 1.9], [a, 3.65, zf + 1.9], [c, 3.65, zf + 1.9], [c, 3.9, zf + 1.9], K(col).clone().multiplyScalar(.8));
+  }
+  for (let i = 0; i <= n; i++) b.box(-w / 2 + 2 + pw * i, .14, zf + .1, .2, 7.4, .12, WHITE);   /* white mullions */
+  /* entrance hall: a taller glass box with dark frame, two doors and the sign band */
+  b.box(0, .14, zf + 2.6, 9.2, 9.4, .12, GLASS);
+  b.box(-4.6, .14, zf + 1.3, .12, 9.4, 2.7, GLASS); b.box(4.6, .14, zf + 1.3, .12, 9.4, 2.7, GLASS);
+  for (const x of [-4.6, 4.6]) b.box(x, .14, zf + 2.6, .3, 9.6, .3, DARK);
+  b.box(0, 9.6, zf + 1.4, 10, .45, 3.4, '#cfc8b5');
+  b.box(-1.3, .14, zf + 2.68, 2.2, 3.3, .12, DARK); b.box(1.3, .14, zf + 2.68, 2.2, 3.3, .12, DARK);
+  b.box(0, 6.9, zf + 2.75, 8, 1.5, .2, '#2f4f73'); b.box(0, 7.55, zf + 2.85, 6.4, .14, .1, '#c9a24a');
+  /* roof: air-con boxes and a little skylight */
+  b.box(-10, h + .64, -1, 3.2, 1.3, 2.4, '#9aa0a4'); b.box(9, h + .64, 1, 3.2, 1.3, 2.4, '#9aa0a4'); b.box(0, h + .64, -2, 6, .6, 3, GLASS);
+  /* flower tubs and benches on the terrace */
+  for (const x of [-14, -9.5, 9.5, 14]) { b.cyl(x, .14, zf + 6.4, .6, .6, 8, '#a8603f', '#4a3a28'); b.cyl(x, .74, zf + 6.4, .5, .35, 8, '#d9577f'); }
+  for (const x of [-12, 12]) { b.box(x, .5, zf + 8.6, 2.4, .1, .6, WOOD); b.box(x - .9, .14, zf + 8.6, .12, .4, .5, '#3a3f44'); b.box(x + .9, .14, zf + 8.6, .12, .4, .5, '#3a3f44'); }
+}
+
 function parkFountain(b, q, H) {
   const y = H(q.x, q.z);
   fountain(b, { x: q.x, z: q.z }, y);
@@ -169,6 +206,7 @@ export function landmarks(b, L, H) {
     if (d.id === 'stadium') stadium(b, d, H);
     else if (d.id === 'billiards') billiards(b, d);
     else if (d.id === 'mainstreet') mainStreet(b, d);
+    else if (d.id === 'mall') mall(b, d);
   }
   (L.squares || []).forEach(q => parkFountain(b, q, H));
   (L.ponds || []).forEach(p => pond(b, p, H));
