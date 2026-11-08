@@ -469,15 +469,39 @@ export function layout() {
   /* ---------- STREETS: polylines for streets.js, plus the crosswalk list ---------- */
   L.streets = []; L.xwalks = [];
   const roadOK = (x, z, bridgeRow) => !(inChurch(x, z) || nearCastle(x, z, 5.5) || H(x, z) < 1.2 || (!bridgeRow && canalDist(x, z) < 3.5));
-  for (let r = 0; r <= NROWS; r++) { /* one street in front of each row of houses. Row 3 ends at the big bridge, the others at the river bank */
-    const br = L.bridges[r]; let cur = [];
-    const flush = () => { if (cur.length > 1) L.streets.push({ pts: cur, k: 'ew', row: r }); cur = []; };
-    for (let x = -166; x <= 166; x += 3) {
+  const homesAll = [...L.houses, ...L.shops], homeNear = (x, z) => homesAll.some(h => Math.abs(h.x - x) < 8.2 && Math.abs(h.z - z) < 8.2 && Math.hypot(h.x - x, h.z - z) < 8.2); /* a road never runs into a house */
+  for (let r = 0; r <= NROWS; r++) { /* one street in front of each row of houses */
+    let cur = []; const mine = [];
+    const flush = () => { if (cur.length > 1) { const st = { pts: cur, k: 'ew', row: r }; L.streets.push(st); mine.push(st); } cur = []; };
+    for (let x = -172; x <= 172; x += 3) {
       const z = roadZ(r, x);
-      if ((r === 3 && Math.abs(x - br.x) < 10.4) || !roadOK(x, z, r === 3) || (r !== 3 && Math.abs(x - xr(z)) < 8) || Math.abs(roadZ(r, x + 4) - roadZ(r, x - 4)) / 8 > .55) { flush(); continue; } /* last test: the street ends where the shore curves away (too steep for a straight street) */
+      /* ROAD FIX: the street no longer stops where the shore curves (the slope limit was .55, so every row quit about 40 units short of the town edge and
+         left the outer houses without a road); it follows the curve to the end of the row. The river is crossed by a road bridge (below). */
+      if (!roadOK(x, z, false) || homeNear(x, z) || Math.abs(x - xr(z)) < 9 || Math.abs(roadZ(r, x + 4) - roadZ(r, x - 4)) / 8 > 2) { flush(); continue; }
       cur.push([x, z]);
     }
     flush();
+    /* ROAD FIX: a road bridge over the river, so the west and the east half of the village are one network (k 'bridge': streets.js draws a flat deck) */
+    const W = mine.filter(s => s.pts[s.pts.length - 1][0] < xr(s.pts[s.pts.length - 1][1])).pop(), E = mine.find(s => s.pts[0][0] > xr(s.pts[0][1]));
+    if (W && E) {
+      const a = W.pts[W.pts.length - 1], b = E.pts[0], n = Math.max(2, Math.ceil((b[0] - a[0]) / 3)), bp = [a];
+      for (let k = 1; k < n; k++) { const x = a[0] + (b[0] - a[0]) * k / n; bp.push([x, roadZ(r, x)]); }
+      bp.push(b);
+      if (b[0] - a[0] < 30 && !bp.some(q => inChurch(q[0], q[1]) || nearCastle(q[0], q[1], 5.5))) L.streets.push({ pts: bp, k: 'bridge', row: r });
+    }
+  }
+  /* ROAD FIX: tiny stray stubs (shorter than 12 units) are dropped, and the outer ends of the row streets are joined by a ring road along each edge of the village,
+     so no street ends in a dead end against the grass any more. A link is only built where it is clear of houses, shops, castles, squares, water and steep ground. */
+  L.streets = L.streets.filter(st => st.k !== 'ew' || st.pts.length > 4);
+  { const homes = [...L.houses, ...L.shops], free = (x, z) => roadOK(x, z, false) && !homes.some(h => Math.abs(h.x - x) < 8.2 && Math.abs(h.z - z) < 8.2 && Math.hypot(h.x - x, h.z - z) < 8.2) && !L.squares.some(q => Math.hypot(x - q.x, z - q.z) < q.r + 3);
+    for (const side of [-1, 1]) {
+      const tips = L.streets.filter(st => st.k === 'ew').map(st => ({ row: st.row, p: side < 0 ? st.pts[0] : st.pts[st.pts.length - 1] })).filter(t => Math.abs(t.p[0]) >= 168 && Math.sign(t.p[0]) === side).sort((a, b) => a.row - b.row);
+      for (let i = 0; i < tips.length - 1; i++) {
+        const a = tips[i].p, b = tips[i + 1].p, n = Math.max(2, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 3)), pts = [];
+        for (let k = 0; k <= n; k++) pts.push([a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n]);
+        if (pts.every(q => free(q[0], q[1]))) L.streets.push({ pts, k: 'ring', row: tips[i].row });
+      }
+    }
   }
   for (const X of XSTREETS) { /* the cross streets, from the row-0 street to the last row street (none at the moment) */
     let cur = []; const z1 = roadZ(NROWS, X);
@@ -487,7 +511,7 @@ export function layout() {
     flush();
   }
   /* crosswalks: zebra stripes on the cross street either side of each row street, and on each row street either side of each cross street */
-  const onStreet = (x, z) => L.streets.some(s => polyDist(s.pts, x, z) < (s.k === 'ew' ? ROAD_W : XW * 2) / 2 + .4);
+  const onStreet = (x, z) => L.streets.some(s => polyDist(s.pts, x, z) < (s.k === 'ns' ? XW * 2 : ROAD_W) / 2 + .4);
   const tang = (r, x) => { const dz = roadZ(r, x + 1) - roadZ(r, x - 1); const l = Math.hypot(2, dz); return [2 / l, dz / l]; };
   for (const X of XSTREETS) for (let r = 0; r <= NROWS; r++) {
     const zc = roadZ(r, X); if (!onStreet(X, zc)) continue;
