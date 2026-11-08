@@ -1,12 +1,13 @@
 /* Nestville polish: a smaller sun and more natural water.
    Works on the live scene (window.__nv), next to town.js and seasons.js. It is loaded from streets.js, so index.html does not change.
-   Tune: SUN_DISC (size of the sun, smaller number = smaller sun), the three WATER colours, FRESNEL (how much sky shows on the water at a low angle). */
+   The sun is set HERE and only here (smallsun.js is retired). Tune: SUN_DISC (size of the sun, smaller number = smaller sun), the three WATER colours, FRESNEL (how much sky shows on the water at a low angle).
+   The lake's depth colours, shallows and shore foam are in realwater.js and sit on top of this. */
 function ready(fn) { if (window.__nv) fn(window.__nv); else setTimeout(() => ready(fn), 50); }
 
 /* ---------- sun: a small bright disc with a tight soft glow (it was a huge hazy halo) ---------- */
-const SUN_DISC = 1.0; /* 1 = about the size of a coin at arm's length. 0.7 smaller, 1.5 bigger */
+const SUN_DISC = 0.6; /* 1 = about the size of a coin at arm's length. 0.6 is a small sun, 0.4 smaller, 1.5 bigger */
 const e1 = (1 - 0.00018 * SUN_DISC * SUN_DISC).toFixed(6), e2 = (1 - 0.00008 * SUN_DISC * SUN_DISC).toFixed(6);
-const SKY_FRAG = 'uniform vec3 top,mid,hor,sunDir;varying vec3 vP;void main(){float h=clamp(vP.y,0.,1.);vec3 c=mix(hor,mid,smoothstep(0.,.18,h));c=mix(c,top,smoothstep(.15,.85,h));float s=max(dot(normalize(vP),sunDir),0.);c+=vec3(1.,.95,.8)*(smoothstep(' + e1 + ',' + e2 + ',s)*1.4+pow(s,500.)*.25+pow(s,100.)*.07);gl_FragColor=vec4(c,1.);}';
+const SKY_FRAG = 'uniform vec3 top,mid,hor,sunDir;varying vec3 vP;void main(){float h=clamp(vP.y,0.,1.);vec3 c=mix(hor,mid,smoothstep(0.,.18,h));c=mix(c,top,smoothstep(.15,.85,h));float s=max(dot(normalize(vP),sunDir),0.);c+=vec3(1.,.95,.8)*(smoothstep(' + e1 + ',' + e2 + ',s)*1.4+pow(s,700.)*.2+pow(s,250.)*.06);gl_FragColor=vec4(c,1.);}';
 function fixSun(nv) {
   const sky = nv.scene.children.find(o => o.isMesh && o.material && o.material.isShaderMaterial && o.material.uniforms && o.material.uniforms.sunDir);
   if (!sky || sky.material.userData.nvSun) return;
