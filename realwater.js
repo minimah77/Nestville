@@ -1,18 +1,18 @@
-/* Nestville realwater: a more natural lake (step 1 of the look fix).
+/* Nestville realwater: lake water like the photo (bright clear turquoise, pale shallows, soft rim).
    Adds to the lake's existing water material in place (same material, so polish.js colours and the season tint in seasons.js still work):
-   - colour by DEPTH: clear turquoise near the shore, dark teal in the middle (depth is baked once from the terrain height)
-   - soft see-through shallows, so the lake bed shows near the shore like real water
-   - a thin moving foam line where the water meets the land
+   - colour by DEPTH: pale minty aqua near the shore, clear turquoise-blue in the middle (depth is baked once from the terrain height)
+   - soft see-through shallows, so the lake bed shows near the shore
+   - a thin pale rim that moves a little where the water meets the land
    The sky reflection and the sun glint come from polish.js (not doubled here).
-   The depth colours are multiplied by (current water colour / its base colour), so polish.js and the seasons recolour them without making them too dark.
+   The depth colours are multiplied by (current water colour / its base colour), so polish.js and the seasons recolour them.
    Runs next to town.js and reads the same scene (window.__nv).
-   Tune: SHAL / DEEP (colours, linear), DEEPAT (depth in units where it is fully dark), FOAM (foam strength). */
+   Tune: SHAL / DEEP (colours, linear), DEEPAT (depth in units where it reaches the deep colour; smaller = brighter lake), FOAM (rim strength). */
 import * as THREE from './lib.js';
 import { H, WL } from './world.js';
 
 function ready(fn) { if (window.__nv) fn(window.__nv); else setTimeout(() => ready(fn), 50); }
 
-const SHAL = 'vec3(.17, .52, .50)', DEEP = 'vec3(.006, .08, .15)', DEEPAT = '7.', FOAM = '.6';
+const SHAL = 'vec3(.38, .75, .64)', DEEP = 'vec3(.08, .42, .52)', DEEPAT = '5.', FOAM = '.6';
 
 ready(nv => {
   const world = nv.scene.children.find(o => o.isGroup);
@@ -37,12 +37,12 @@ ready(nv => {
 float nvDk = smoothstep(.15, ${DEEPAT}, vDepth);
 vec3 nvTint = clamp(diffuseColor.rgb / ${base}, 0., 4.);
 diffuseColor.rgb = mix(${SHAL}, ${DEEP}, nvDk) * nvTint;
-diffuseColor.a = mix(.5, .97, smoothstep(0., 3., vDepth));
+diffuseColor.a = mix(.72, .97, smoothstep(0., 3., vDepth));
 float nvSh = 1. - smoothstep(0., .6, vDepth + sin(vWP.x * .9 + uT * 1.1) * .08 + sin(vWP.z * 1.1 - uT * .9) * .08);
 float nvFo = clamp(nvSh * (.6 + .4 * sin(vWP.x * 2.3 + vWP.z * 1.7 + uT * 1.5)), 0., 1.);
 diffuseColor.rgb = mix(diffuseColor.rgb, vec3(.85, .92, .92), nvFo * ${FOAM});
 diffuseColor.a = mix(diffuseColor.a, 1., nvFo * .5);`);
   };
-  mat.customProgramCacheKey = () => 'nvwater2';
+  mat.customProgramCacheKey = () => 'nvwater3';
   mat.needsUpdate = true;
 });
