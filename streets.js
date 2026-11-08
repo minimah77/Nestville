@@ -1,20 +1,25 @@
 /* Nestville streets (step 1 of "make the town like the photo").
    world.js lays out the streets (L.streets: polylines, L.xwalks: crosswalks, L.inter: intersections). This file draws them:
-   dark asphalt with a little tone variation, light curbs on both edges, a dashed white centre line (not through intersections),
-   and zebra crosswalks. Everything is two meshes (asphalt, markings), so it costs two draw calls.
+   asphalt with a little tone variation, light curbs on both edges, a dashed white centre line (not through intersections),
+   and zebra crosswalks. Everything is a few meshes (asphalt, markings, timber bridges), so it costs only a few draw calls.
    Every street now ends in a half round turning bay with a curb all round, so no street stops dead against the grass.
    Runs next to town.js and extras.js and reads the same scene (window.__nv). Add  import './streets.js';  where extras.js is imported.
    Colours are at the top: tune ASPHALT / CURB / PAINT to taste.
    Road look pass (photo): bolder curbs (CURB_W), longer and thicker centre dashes (DASH, GAP, DASH_W), bigger zebra stripes.
    Cross streets (roads.js): curbs now also stop short of an intersection on the narrower cross street, so no curb stub lies on the crossing road.
-   Road network fix: road bridges over the river (k 'bridge', flat deck), ring links (k 'ring'), and no turning bay where a street end joins another street. */
+   Road network fix: road bridges over the river (k 'bridge'), ring links (k 'ring'), and no turning bay where a street end joins another street.
+   Look fix 2: the Builder winds every face to match its normal (roads used to render almost black because many faces pointed down), one clean zebra
+   per arm of every junction, sidewalks along the cross streets, and the road bridges are brown timber bridges with rails, lamps and piers. */
 import * as THREE from './lib.js';
 import { H, L, ROAD_W, XW, polyDist } from './world.js';
 import './polish.js'; /* smaller sun + natural water (polish.js) */
 
 function ready(fn) { if (window.__nv) fn(window.__nv); else setTimeout(() => ready(fn), 50); }
 
-const ASPHALT = '#3b3d45', CURB = '#c9c3b4', SKIRT = '#8d887c', PAINT = '#f4f1e8';
+const ASPHALT = '#5a5e67', CURB = '#d8d3c4', SKIRT = '#a9a595', PAINT = '#f7f4ea', SIDEW = '#dcd7ca';
+/* timber bridge colours (brown, like the photo's pier) */
+const PLANK_A = '#a06a3f', PLANK_B = '#8f5b34', BEAM = '#5b3a22', POST = '#6c4528', LAMP = '#f0cf7a';
+const SW_W = 1.9; /* width of the sidewalk beside every cross street */
 const CURB_W = .45, DASH = 3.2, GAP = 3.0, DASH_W = .16; /* curb width, centre dash length, gap between dashes, half width of a dash */
 export const LIFT = .02; /* the street surface sits this far above the highest ground across its width; the row sidewalks are .16 above the same ground, so the kerb is ~.14 high */
 
@@ -25,7 +30,11 @@ export function Builder() {
     quad(a, b, c, d, color, n = [0, 1, 0]) {
       const k = pos.length / 3, C = new THREE.Color(color);
       for (const p of [a, b, c, d]) { pos.push(p[0], p[1], p[2]); col.push(C.r, C.g, C.b); nor.push(n[0], n[1], n[2]); }
-      idx.push(k, k + 1, k + 2, k, k + 2, k + 3);
+      /* winding follows the normal: a quad whose corners run the "wrong" way used to face downward and was lit from underneath (almost black).
+         Now every face is wound so its front side points the way its normal says, whatever order the corners were given in. */
+      const e1 = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], e2 = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+      const gx = e1[1] * e2[2] - e1[2] * e2[1], gy = e1[2] * e2[0] - e1[0] * e2[2], gz = e1[0] * e2[1] - e1[1] * e2[0];
+      if (gx * n[0] + gy * n[1] + gz * n[2] >= 0) idx.push(k, k + 1, k + 2, k, k + 2, k + 3); else idx.push(k, k + 2, k + 1, k, k + 3, k + 2);
     },
     box(cx, cy, cz, sx, sy, sz, color) { /* axis-aligned box (no bottom face) */
       const x0 = cx - sx / 2, x1 = cx + sx / 2, y0 = cy - sy / 2, y1 = cy + sy / 2, z0 = cz - sz / 2, z1 = cz + sz / 2;
@@ -86,7 +95,7 @@ export function at(S, s) {
 ready(nv => {
   const scene = nv.scene, streets = L.streets || [];
   if (!streets.length) return;
-  const road = Builder(), mark = Builder(), all = []; /* all: every sample, for looking up the street height under a crosswalk */
+  const road = Builder(), mark = Builder(), wood = Builder(), all = []; /* all: every sample, for looking up the street height under a crosswalk */
   const inter = L.inter || [];
   const nearInter = (x, z, r) => inter.some(p => Math.hypot(x - p.x, z - p.z) < r);
 
@@ -97,6 +106,7 @@ ready(nv => {
       S.forEach(p => { p.y = y0 + (y1 - y0) * (p.s / tot); p.yl = p.y - .9; p.yr = p.y - .9; });
     }
     S.forEach(p => all.push(p));
+    if (st.k === 'bridge') { timberBridge(wood, S, hw); return; }
     for (let i = 0; i < S.length - 1; i++) {
       const a = S[i], c = S[i + 1], tone = (hash(st.row === undefined ? st.x : st.row, i) - .5) * .02;
       const col = shade(ASPHALT, tone);
@@ -121,6 +131,24 @@ ready(nv => {
       const p0 = at(S, s), p1 = at(S, s + DASH), w = DASH_W, y = .014;
       mark.quad([p0.x - p0.tz * w, p0.y + y, p0.z + p0.tx * w], [p0.x + p0.tz * w, p0.y + y, p0.z - p0.tx * w], [p1.x + p1.tz * w, p1.y + y, p1.z - p1.tx * w], [p1.x - p1.tz * w, p1.y + y, p1.z + p1.tx * w], PAINT);
     }
+    /* sidewalks along both sides of a cross street, with a gap where a row street crosses (the zebra crossing goes there) */
+    if (st.k === 'ns') {
+      for (let i = 0; i < S.length - 1; i++) {
+        const a = S[i], c = S[i + 1], mx = (a.x + c.x) / 2, mz = (a.z + c.z) / 2;
+        if (inter.some(p => Math.abs(mz - p.z) < ROAD_W / 2 + 2.6 && Math.abs(mx - p.x) < 8)) continue;
+        for (const side of ['L', 'R']) {
+          const sg = side === 'L' ? 1 : -1, o0 = hw + .08, o1 = hw + SW_W, up = .07;
+          const P = (q, o) => [q.x + (-q.tz) * sg * o, q.z + q.tx * sg * o];
+          const A0 = P(a, o0), A1 = P(a, o1), C0 = P(c, o0), C1 = P(c, o1);
+          /* the strip follows the ground when it is higher than the street, so the grass never covers it */
+          const ys = (q, P0, P1) => Math.max(q.y, H(P0[0], P0[1]), H(P1[0], P1[1])) + up;
+          const yA = ys(a, A0, A1), yC = ys(c, C0, C1);
+          mark.quad([A0[0], yA, A0[1]], [A1[0], yA, A1[1]], [C1[0], yC, C1[1]], [C0[0], yC, C0[1]], SIDEW);
+          const ya = Math.min(yA - .3, H(A1[0], A1[1]) - .3), yc = Math.min(yC - .3, H(C1[0], C1[1]) - .3);
+          road.quad([A1[0], ya, A1[1]], [A1[0], yA, A1[1]], [C1[0], yC, C1[1]], [C1[0], yc, C1[1]], SIDEW, [-a.tz * sg, 0, a.tx * sg]);
+        }
+      }
+    }
     /* rounded ends: a street no longer stops dead against the grass. It finishes in a half round turning bay with a curb all round.
        (p.tx, p.tz) is the way the street runs; dir turns it to point out of the street at each end. */
     for (const [p, dir] of [[S[0], -1], [S[S.length - 1], 1]]) {
@@ -138,20 +166,73 @@ ready(nv => {
     }
   });
 
-  /* crosswalks: zebra stripes run along the traffic, spaced across the street */
-  const yAt = (x, z) => { let best = 1e9, y = H(x, z) + LIFT; for (const p of all) { const d = (p.x - x) ** 2 + (p.z - z) ** 2; if (d < best) { best = d; y = p.y; } } return y; };
-  (L.xwalks || []).forEach(w => {
-    const nx = -w.dz, nz = w.dx, k = Math.max(2, Math.floor(w.w / .9)), y = yAt(w.x, w.z) + .018;
+  /* crosswalks: a zebra is a row of short bars that run ALONG the traffic, spaced ACROSS the street, always inside the asphalt.
+     Every intersection gets one zebra on each of its four arms (placed just outside the junction), so they never pile up on each other. */
+  const nearest = (x, z) => { let best = 1e9, q = all[0]; for (const p of all) { const d = (p.x - x) ** 2 + (p.z - z) ** 2; if (d < best) { best = d; q = p; } } return q; };
+  const zebra = (cx, cz, dx, dz, width, y) => {
+    const nx = -dz, nz = dx, BAR = .5, PITCH = 1.05, hl = 1.3, k = Math.max(2, Math.floor((width - 1.0) / PITCH) + 1), span = (k - 1) * PITCH;
     for (let j = 0; j < k; j++) {
-      const o = (j - (k - 1) / 2) * (w.w - .5) / (k - 1), cx = w.x + nx * o, cz = w.z + nz * o, hl = 1.4, hn = .3;
-      const P = (a, b) => [cx + w.dx * a + nx * b, y, cz + w.dz * a + nz * b];
+      const o = -span / 2 + j * PITCH, bx = cx + nx * o, bz = cz + nz * o, hn = BAR / 2;
+      const P = (a, b) => [bx + dx * a + nx * b, y, bz + dz * a + nz * b];
       mark.quad(P(-hl, -hn), P(-hl, hn), P(hl, hn), P(hl, -hn), PAINT);
     }
+  };
+  const onRoad = (x, z) => streets.some(o => o.k !== 'bridge' && polyDist(o.pts, x, z) < (o.k === 'ns' ? XW : ROAD_W / 2) + .2);
+  inter.forEach(p => {
+    const row = nearest(p.x, p.z), len = Math.hypot(row.tx, row.tz) || 1, tx = row.tx / len, tz = row.tz / len, d = XW + 2.2, d2 = ROAD_W / 2 + 2.2;
+    for (const sg of [-1, 1]) {
+      /* arm along the row street: the zebra crosses the row street */
+      const ax = p.x + tx * d * sg, az = p.z + tz * d * sg;
+      if (onRoad(ax + tx * 2 * sg, az + tz * 2 * sg)) { const q = nearest(ax, az); zebra(ax, az, tx, tz, ROAD_W, q.y + .02); }
+      /* arm along the cross street: the zebra crosses the cross street */
+      const bx = p.x, bz = p.z + d2 * sg;
+      if (onRoad(bx, bz + 2 * sg)) { const q = nearest(bx, bz); zebra(bx, bz, 0, 1, XW * 2, q.y + .02); }
+    }
   });
+  /* zebras where a footpath crosses a street away from the junctions */
+  (L.xwalks || []).forEach(w => {
+    if (inter.some(p => Math.hypot(w.x - p.x, w.z - p.z) < 12)) return;
+    zebra(w.x, w.z, w.dx, w.dz, w.w, nearest(w.x, w.z).y + .02);
+  });
+
+  /* ---------- the timber bridge ---------- */
+  function timberBridge(B, S, hw) {
+    const W = hw + .5, HUMP = .5, TH = .85, tot = S[S.length - 1].s || 1;
+    const lift = (p) => p.y + .12 + HUMP * Math.sin(Math.PI * p.s / tot);
+    const sd = (p, o) => [p.x + (-p.tz) * o, p.z + p.tx * o];
+    for (let i = 0; i < S.length - 1; i++) {
+      const a = S[i], c = S[i + 1], ya = lift(a), yc = lift(c), col = i % 2 ? PLANK_A : PLANK_B;
+      const aL = sd(a, W), aR = sd(a, -W), cL = sd(c, W), cR = sd(c, -W);
+      B.quad([aL[0], ya, aL[1]], [aR[0], ya, aR[1]], [cR[0], yc, cR[1]], [cL[0], yc, cL[1]], col);
+      B.quad([aR[0], ya - TH, aR[1]], [aL[0], ya - TH, aL[1]], [cL[0], yc - TH, cL[1]], [cR[0], yc - TH, cR[1]], BEAM, [0, -1, 0]);
+      B.quad([aL[0], ya - TH, aL[1]], [aL[0], ya, aL[1]], [cL[0], yc, cL[1]], [cL[0], yc - TH, cL[1]], BEAM, [-a.tz, 0, a.tx]);
+      B.quad([aR[0], ya, aR[1]], [aR[0], ya - TH, aR[1]], [cR[0], yc - TH, cR[1]], [cR[0], yc, cR[1]], BEAM, [a.tz, 0, -a.tx]);
+      /* two rails per side: a low one and a hand rail, both with a visible top and inner face */
+      for (const sg of [-1, 1]) for (const [h0, h1] of [[.5, .68], [1.0, 1.2]]) {
+        const o = sg * (W - .12), w = .13, i0 = sd(a, o - w), i1 = sd(a, o + w), j0 = sd(c, o - w), j1 = sd(c, o + w);
+        B.quad([i0[0], ya + h1, i0[1]], [i1[0], ya + h1, i1[1]], [j1[0], yc + h1, j1[1]], [j0[0], yc + h1, j0[1]], POST);
+        const inn = sg > 0 ? [i0, j0] : [i1, j1];
+        B.quad([inn[0][0], ya + h0, inn[0][1]], [inn[0][0], ya + h1, inn[0][1]], [inn[1][0], yc + h1, inn[1][1]], [inn[1][0], yc + h0, inn[1][1]], POST, [-a.tz * -sg, 0, a.tx * -sg]);
+      }
+      /* posts every other sample, and a heavy timber pier pair under every fourth one, down into the river bed */
+      if (i % 2 === 0) for (const sg of [-1, 1]) { const q = sd(a, sg * (W - .12)); B.box(q[0], ya + .6, q[1], .3, 1.3, .3, POST); }
+      if (i % 4 === 2) for (const sg of [-1, 1]) {
+        const q = sd(a, sg * (W - .5)), bot = Math.min(H(q[0], q[1]) - .6, ya - 3.5);
+        B.box(q[0], (ya - TH + bot) / 2, q[1], .75, ya - TH - bot, .75, BEAM);
+      }
+    }
+    /* lamp posts at both ends */
+    for (const [p, sg2] of [[S[0], 1], [S[S.length - 1], -1]]) for (const sg of [-1, 1]) {
+      const q = sd(p, sg * (W - .12)), y = lift(p);
+      B.box(q[0], y + 1.6, q[1], .34, 3.2, .34, BEAM); B.box(q[0], y + 3.4, q[1], .5, .5, .5, LAMP);
+    }
+  }
 
   const asphalt = road.mesh(new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }));
   const paint = mark.mesh(new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }));
   asphalt.receiveShadow = true; paint.receiveShadow = true; asphalt.castShadow = false; paint.castShadow = false;
+  const timber = wood.mesh(new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }));
+  timber.castShadow = true; timber.receiveShadow = true; timber.name = 'road-bridges';
   asphalt.name = 'streets'; paint.name = 'street-markings';
-  scene.add(asphalt, paint);
+  scene.add(asphalt, paint, timber);
 });
