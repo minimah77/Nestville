@@ -6,9 +6,10 @@
    Runs next to town.js and extras.js and reads the same scene (window.__nv). Add  import './streets.js';  where extras.js is imported.
    Colours are at the top: tune ASPHALT / CURB / PAINT to taste.
    Road look pass (photo): bolder curbs (CURB_W), longer and thicker centre dashes (DASH, GAP, DASH_W), bigger zebra stripes.
-   Cross streets (roads.js): curbs now also stop short of an intersection on the narrower cross street, so no curb stub lies on the crossing road. */
+   Cross streets (roads.js): curbs now also stop short of an intersection on the narrower cross street, so no curb stub lies on the crossing road.
+   Road network fix: road bridges over the river (k 'bridge', flat deck), ring links (k 'ring'), and no turning bay where a street end joins another street. */
 import * as THREE from './lib.js';
-import { H, L, ROAD_W, XW } from './world.js';
+import { H, L, ROAD_W, XW, polyDist } from './world.js';
 import './polish.js'; /* smaller sun + natural water (polish.js) */
 
 function ready(fn) { if (window.__nv) fn(window.__nv); else setTimeout(() => ready(fn), 50); }
@@ -90,7 +91,11 @@ ready(nv => {
   const nearInter = (x, z, r) => inter.some(p => Math.hypot(x - p.x, z - p.z) < r);
 
   streets.forEach(st => {
-    const hw = ROAD_W / 2 * (st.k === 'ew' ? 1 : (XW * 2) / ROAD_W), S = sample(st.pts, hw), cw = CURB_W; /* cw: curb width */
+    const hw = ROAD_W / 2 * (st.k === 'ns' ? (XW * 2) / ROAD_W : 1), S = sample(st.pts, hw), cw = CURB_W; /* cw: curb width */
+    if (st.k === 'bridge') { /* road bridge over the river: a flat deck between the two banks, with a deep edge so it does not float */
+      const y0 = S[0].y, y1 = S[S.length - 1].y, tot = S[S.length - 1].s || 1;
+      S.forEach(p => { p.y = y0 + (y1 - y0) * (p.s / tot); p.yl = p.y - .9; p.yr = p.y - .9; });
+    }
     S.forEach(p => all.push(p));
     for (let i = 0; i < S.length - 1; i++) {
       const a = S[i], c = S[i + 1], tone = (hash(st.row === undefined ? st.x : st.row, i) - .5) * .02;
@@ -119,6 +124,7 @@ ready(nv => {
     /* rounded ends: a street no longer stops dead against the grass. It finishes in a half round turning bay with a curb all round.
        (p.tx, p.tz) is the way the street runs; dir turns it to point out of the street at each end. */
     for (const [p, dir] of [[S[0], -1], [S[S.length - 1], 1]]) {
+      if (streets.some(o => o !== st && polyDist(o.pts, p.x, p.z) < 4.5)) continue; /* this end joins another street: no turning bay, the road just carries on */
       const ox = p.tx * dir, oz = p.tz * dir, nx = -oz, nz = ox, N = 10;
       const pt = (a, r, y) => [p.x + (Math.cos(a) * ox + Math.sin(a) * nx) * r, y, p.z + (Math.cos(a) * oz + Math.sin(a) * nz) * r];
       for (let i = 0; i < N; i++) {
