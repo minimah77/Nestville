@@ -158,6 +158,13 @@ function win(b, x, y, zf, w, h, sh, flower, fcol) {
   b.box(x + w / 2 + .5, y - .05, zf + .08, .62, h + .1, .08, sh);
   if (flower) windowBox(b, x, y - .62, zf + .4, w + .5, Math.round(x * 10 + y * 7)); /* a real window box: wood planter, leaves, daisies, tulips, poppies */
 }
+/* a plain window (white frame, glass, cross bars; no shutters, no flower box): used on the backs and the sides of the houses, so every wall has windows */
+function win2(b, x, y, zf, w, h) {
+  b.box(x, y - .1, zf + .03, w + .4, h + .24, .1, '#f8f4e8');
+  b.box(x, y, zf + .08, w, h, .06, '#4f7894');
+  b.box(x, y + h * .5 - .04, zf + .12, w, .08, .04, '#f8f4e8');
+  b.box(x - .04, y, zf + .12, .08, h, .04, '#f8f4e8');
+}
 const FL = ['#e0527a', '#f3a6c0', '#d9463a', '#fff3d6', '#f0b13a'];
 const WALL = ['#f3ead3', '#f6f2e8', '#f0d9a2', '#ecc9a8', '#dbe4e6', '#e9e1c8', '#f2e2c4'];
 const TIM = ['#6e4a31', '#8a5b39', '#5b3f2c', '#7a5a3a'];
@@ -191,6 +198,15 @@ export function chalet(b, x, y, z, yaw, u, smoke, lite) {
       if (!lite) windowBox(b, 0, 5.2, zu + 1.5, w * .6, 91);
     }
   }
+  /* the back and the two sides get windows too (the village is mostly seen from behind, from the south) */
+  b.sub(0, 0, 0, Math.PI, () => {
+    win2(b, -w * .29, 1.9, d / 2, 1.5, 1.7); win2(b, w * .29, 1.9, d / 2, 1.5, 1.7);
+    for (let f = 1; f < floors; f++) { const yy = 4.3 + (f - 1) * fh + .9; win2(b, -w * .3, yy, d / 2, 1.5, 1.8); win2(b, w * .3, yy, d / 2, 1.5, 1.8); }
+  });
+  for (const s of [-1, 1]) b.sub(0, 0, 0, s * Math.PI / 2, () => {
+    win2(b, 0, 1.9, w / 2, 1.5, 1.7);
+    for (let f = 1; f < floors; f++) win2(b, 0, 4.3 + (f - 1) * fh + .9, w / 2 + .35, 1.5, 1.8);
+  });
   let rh;
   if (hip) { rh = 3.6; b.hip(0, top, .3, w + .7, d + .6, rh, .9, roof); }
   else { rh = (w / 2 + .35 + .9) * .8; b.gable(0, top, .3, w + .7, d + .6, rh, .9, roof, tim); }
@@ -227,6 +243,15 @@ export function townhouse(b, x, y, z, yaw, u, smoke, lite) {
     const yy = 4.3 + (f - 1) * fh + .8;
     win(b, -w * .27, yy, d / 2, 1.3, 1.8, shut, !lite && f === 1, FL); win(b, w * .27, yy, d / 2, 1.3, 1.8, shut, !lite && f === 1, FL); win(b, 0, yy, d / 2, 1.1, 1.8, shut, false, FL);
   }
+  /* the back and the two sides get windows too (the village is mostly seen from behind, from the south) */
+  b.sub(0, 0, 0, Math.PI, () => {
+    win2(b, -w * .25, 1.5, d / 2, 1.5, 1.8); win2(b, w * .25, 1.5, d / 2, 1.5, 1.8);
+    for (let f = 1; f < floors; f++) { const yy = 4.3 + (f - 1) * fh + .8; win2(b, -w * .27, yy, d / 2, 1.3, 1.8); win2(b, w * .27, yy, d / 2, 1.3, 1.8); win2(b, 0, yy, d / 2, 1.1, 1.8); }
+  });
+  for (const s of [-1, 1]) b.sub(0, 0, 0, s * Math.PI / 2, () => {
+    win2(b, 0, 1.5, w / 2, 1.5, 1.8);
+    for (let f = 1; f < floors; f++) win2(b, 0, 4.3 + (f - 1) * fh + .8, w / 2, 1.3, 1.8);
+  });
   /* steep roof (ridge along the street), two dormers, chimney */
   const rh = (d / 2 + .6) * 1.15, dd = d + .4, ze = dd / 2 + .6;
   b.gableX(0, top, 0, w + .4, dd, rh, .6, roof, wall);
